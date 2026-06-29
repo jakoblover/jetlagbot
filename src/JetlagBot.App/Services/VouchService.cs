@@ -28,7 +28,7 @@ public class VouchService : IVouchService
     {
         if (request.TargetUserId == request.VoucherUserId)
         {
-            return VouchResult.Failed("You cannot vouch for yourself.");
+            return VouchResult.Failed("Du kan ikke anbefale deg selv.");
         }
 
         var settings = await _settings.GetOrCreateAsync(request.GuildId, cancellationToken);
@@ -37,14 +37,14 @@ public class VouchService : IVouchService
         if (request.VoucherJoinedAtUtc is not DateTime joinedAt)
         {
             return VouchResult.Failed(
-                "I couldn't determine how long you've been a member of this server, so I can't process your vouch right now.");
+                "Jeg kunne ikke fastslå hvor lenge du har vært medlem av denne serveren, så jeg kan ikke behandle anbefalingen din akkurat nå.");
         }
 
         var membershipDays = (now - joinedAt).TotalDays;
         if (membershipDays < settings.MinimumMembershipAgeDays)
         {
             return VouchResult.Failed(
-                $"You must have been a member of this server for at least {settings.MinimumMembershipAgeDays} days before you can vouch for someone.");
+                $"Du må ha vært medlem av denne serveren i minst {settings.MinimumMembershipAgeDays} dager før du kan anbefale noen.");
         }
 
         var cooldownStart = now - TimeSpan.FromDays(settings.VouchCooldownDays);
@@ -59,7 +59,7 @@ public class VouchService : IVouchService
         {
             var nextAllowed = lastVouch.CreatedAtUtc.AddDays(settings.VouchCooldownDays);
             return VouchResult.Failed(
-                $"You can only vouch once every {settings.VouchCooldownDays} days. You can vouch again after {nextAllowed:yyyy-MM-dd}.");
+                $"Du kan bare gi én anbefaling hver {settings.VouchCooldownDays}. dag. Du kan anbefale igjen etter {nextAllowed:yyyy-MM-dd}.");
         }
 
         var message = string.IsNullOrWhiteSpace(request.Message) ? null : request.Message.Trim();

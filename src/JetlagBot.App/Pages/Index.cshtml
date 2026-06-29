@@ -1,19 +1,19 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Hjem";
 }
 
 <div class="text-center">
     <h1 class="display-4">JetlagBot</h1>
-    <p class="lead">A Discord vouch bot with a web-based administration panel.</p>
+    <p class="lead">En Discord-anbefalingsbot med et nettbasert administrasjonspanel.</p>
 
     @if (User.Identity?.IsAuthenticated == true)
     {
-        <a class="btn btn-primary" asp-page="/Admin/Index">Go to admin panel</a>
+        <a class="btn btn-primary" asp-page="/Admin/Index">Gå til administrasjonspanelet</a>
     }
     else
     {
-        <a class="btn btn-primary" asp-page="/Account/Login">Sign in with Discord</a>
+        <a class="btn btn-primary" asp-page="/Account/Login">Logg inn med Discord</a>
     }
 </div>

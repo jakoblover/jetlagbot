@@ -1,24 +1,24 @@
 @page
 @model JetlagBot.App.Pages.Admin.VouchesModel
 @{
-    ViewData["Title"] = "Admin - Vouches";
+    ViewData["Title"] = "Administrasjon - Anbefalinger";
 }
 
-<h1>Vouches</h1>
+<h1>Anbefalinger</h1>
 
-<p class="text-muted">Search the vouches a user has received by guild id and target user id.</p>
+<p class="text-muted">Søk i anbefalingene en bruker har mottatt ved hjelp av server-ID og målbrukerens ID.</p>
 
 <form method="get" class="row g-3 mb-4">
     <div class="col-md-5">
-        <label class="form-label" asp-for="GuildId">Guild id</label>
+        <label class="form-label" asp-for="GuildId">Server-ID</label>
         <input class="form-control" asp-for="GuildId" />
     </div>
     <div class="col-md-5">
-        <label class="form-label" asp-for="TargetUserId">Target user id</label>
+        <label class="form-label" asp-for="TargetUserId">Målbrukerens ID</label>
         <input class="form-control" asp-for="TargetUserId" />
     </div>
     <div class="col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary">Søk</button>
     </div>
 </form>
 
@@ -26,18 +26,18 @@
 {
     @if (Model.Vouches.Count == 0)
     {
-        <div class="alert alert-info">No vouches found for that user in that guild.</div>
+        <div class="alert alert-info">Fant ingen anbefalinger for den brukeren i den serveren.</div>
     }
     else
     {
-        <p>@Model.Vouches.Count vouch(es) found.</p>
+        <p>Fant @Model.Vouches.Count anbefaling(er).</p>
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>Date (UTC)</th>
-                    <th>Voucher</th>
-                    <th>Voucher id</th>
-                    <th>Message</th>
+                    <th>Dato (UTC)</th>
+                    <th>Anbefaler</th>
+                    <th>Anbefalerens ID</th>
+                    <th>Melding</th>
                 </tr>
             </thead>
             <tbody>

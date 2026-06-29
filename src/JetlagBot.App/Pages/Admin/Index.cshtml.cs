@@ -26,15 +26,15 @@ public class IndexModel : PageModel
     public class InputModel
     {
         [Required]
-        [Display(Name = "Guild id")]
+        [Display(Name = "Server-ID")]
         public ulong GuildId { get; set; }
 
         [Range(0, 100000)]
-        [Display(Name = "Minimum membership age (days)")]
+        [Display(Name = "Minimum medlemskapsalder (dager)")]
         public int MinimumMembershipAgeDays { get; set; }
 
         [Range(0, 100000)]
-        [Display(Name = "Vouch cooldown (days)")]
+        [Display(Name = "Karantenetid mellom anbefalinger (dager)")]
         public int VouchCooldownDays { get; set; }
     }
 
@@ -52,7 +52,7 @@ public class IndexModel : PageModel
         }
 
         await _settingsService.UpdateAsync(Input.GuildId, Input.MinimumMembershipAgeDays, Input.VouchCooldownDays);
-        StatusMessage = $"Settings for guild {Input.GuildId} saved.";
+        StatusMessage = $"Innstillinger for server {Input.GuildId} er lagret.";
         return RedirectToPage();
     }
 }

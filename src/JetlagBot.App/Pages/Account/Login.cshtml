@@ -1,17 +1,17 @@
 @page
 @model JetlagBot.App.Pages.Account.LoginModel
 @{
-    ViewData["Title"] = "Login";
+    ViewData["Title"] = "Logg inn";
 }
 @if (!Model.DiscordConfigured)
 {
-    <h1>Sign in unavailable</h1>
+    <h1>Innlogging er utilgjengelig</h1>
     <div class="alert alert-warning">
-        Discord login is not configured. Set <code>Discord:ClientId</code> and
-        <code>Discord:ClientSecret</code> to enable sign-in.
+        Discord-innlogging er ikke konfigurert. Angi <code>Discord:ClientId</code> og
+        <code>Discord:ClientSecret</code> for å aktivere innlogging.
     </div>
 }
 else
 {
-    <p>Redirecting to Discord for sign-in...</p>
+    <p>Videresender til Discord for innlogging ...</p>
 }

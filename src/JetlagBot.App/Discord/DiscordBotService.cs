@@ -107,15 +107,15 @@ public class DiscordBotService : BackgroundService
     {
         var vouch = new SlashCommandBuilder()
             .WithName("vouch")
-            .WithDescription("Vouch for a member of this server.")
-            .AddOption("user", ApplicationCommandOptionType.User, "The user to vouch for.", isRequired: true)
-            .AddOption("message", ApplicationCommandOptionType.String, "An optional message to attach to the vouch.", isRequired: false)
+            .WithDescription("Anbefal et medlem av denne serveren.")
+            .AddOption("user", ApplicationCommandOptionType.User, "Brukeren du vil anbefale.", isRequired: true)
+            .AddOption("message", ApplicationCommandOptionType.String, "En valgfri melding du vil legge ved anbefalingen.", isRequired: false)
             .Build();
 
         var vouches = new SlashCommandBuilder()
             .WithName("vouches")
-            .WithDescription("Privately list the vouches a member has received.")
-            .AddOption("user", ApplicationCommandOptionType.User, "The user whose vouches you want to see.", isRequired: true)
+            .WithDescription("Vis privat anbefalingene et medlem har mottatt.")
+            .AddOption("user", ApplicationCommandOptionType.User, "Brukeren hvis anbefalinger du vil se.", isRequired: true)
             .Build();
 
         return new ApplicationCommandProperties[] { vouch, vouches };
@@ -137,7 +137,7 @@ public class DiscordBotService : BackgroundService
                     await handler.HandleVouchesAsync(command);
                     break;
                 default:
-                    await command.RespondAsync("Unknown command.", ephemeral: true);
+                    await command.RespondAsync("Ukjent kommando.", ephemeral: true);
                     break;
             }
         }
@@ -145,7 +145,7 @@ public class DiscordBotService : BackgroundService
         {
             _logger.LogError(ex, "Error handling slash command {Command}.", command.Data.Name);
 
-            const string error = "Something went wrong while processing your command. Please try again later.";
+            const string error = "Noe gikk galt under behandlingen av kommandoen din. Prøv igjen senere.";
             if (command.HasResponded)
             {
                 await command.FollowupAsync(error, ephemeral: true);

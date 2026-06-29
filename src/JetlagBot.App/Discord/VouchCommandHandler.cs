@@ -21,7 +21,7 @@ public class VouchCommandHandler
     {
         if (command.GuildId is not ulong guildId)
         {
-            await command.RespondAsync("This command can only be used in a server.", ephemeral: true);
+            await command.RespondAsync("Denne kommandoen kan bare brukes i en server.", ephemeral: true);
             return;
         }
 
@@ -47,14 +47,14 @@ public class VouchCommandHandler
             return;
         }
 
-        await command.RespondAsync($"Your vouch for {target.Mention} has been recorded.", ephemeral: true);
+        await command.RespondAsync($"Anbefalingen din av {target.Mention} er registrert.", ephemeral: true);
     }
 
     public async Task HandleVouchesAsync(SocketSlashCommand command)
     {
         if (command.GuildId is not ulong guildId)
         {
-            await command.RespondAsync("This command can only be used in a server.", ephemeral: true);
+            await command.RespondAsync("Denne kommandoen kan bare brukes i en server.", ephemeral: true);
             return;
         }
 
@@ -64,12 +64,12 @@ public class VouchCommandHandler
 
         if (vouches.Count == 0)
         {
-            await command.RespondAsync($"{targetName} has no vouches yet.", ephemeral: true);
+            await command.RespondAsync($"{targetName} har ingen anbefalinger ennå.", ephemeral: true);
             return;
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine($"**Vouches for {targetName}** ({vouches.Count}):");
+        builder.AppendLine($"**Anbefalinger for {targetName}** ({vouches.Count}):");
 
         var truncated = false;
         foreach (var vouch in vouches)
@@ -91,7 +91,7 @@ public class VouchCommandHandler
 
         if (truncated)
         {
-            builder.AppendLine("_(list truncated; more vouches exist)_");
+            builder.AppendLine("_(listen er forkortet; det finnes flere anbefalinger)_");
         }
 
         await command.RespondAsync(builder.ToString(), ephemeral: true);

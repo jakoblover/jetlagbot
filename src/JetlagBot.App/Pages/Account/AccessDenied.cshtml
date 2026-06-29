@@ -1,9 +1,9 @@
 @page
 @{
-    ViewData["Title"] = "Access denied";
+    ViewData["Title"] = "Ingen tilgang";
 }
-<h1 class="text-danger">Access denied</h1>
-<p>Your Discord account is not on the JetlagBot admin allowlist. If you believe this is a mistake, ask an existing administrator to add your Discord user id.</p>
+<h1 class="text-danger">Ingen tilgang</h1>
+<p>Discord-kontoen din står ikke på JetlagBots administrator-tillatelsesliste. Hvis du mener dette er en feil, be en eksisterende administrator om å legge til din Discord bruker-ID.</p>
 <form method="post" asp-page="/Account/Logout">
-    <button type="submit" class="btn btn-secondary">Sign out</button>
+    <button type="submit" class="btn btn-secondary">Logg ut</button>
 </form>

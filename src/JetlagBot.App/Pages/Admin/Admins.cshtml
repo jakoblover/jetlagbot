@@ -1,10 +1,10 @@
 @page
 @model JetlagBot.App.Pages.Admin.AdminsModel
 @{
-    ViewData["Title"] = "Admin - Allowlist";
+    ViewData["Title"] = "Administrasjon - Tillatelsesliste";
 }
 
-<h1>Admin allowlist</h1>
+<h1>Administrator-tillatelsesliste</h1>
 
 @if (!string.IsNullOrEmpty(Model.StatusMessage))
 {
@@ -12,13 +12,13 @@
 }
 
 <p class="text-muted">
-    Users on this allowlist can sign in to the admin panel with their Discord account.
+    Brukere på denne tillatelseslisten kan logge inn i administrasjonspanelet med Discord-kontoen sin.
 </p>
 
-<h2>Bootstrap admins (from configuration)</h2>
+<h2>Forhåndsdefinerte administratorer (fra konfigurasjon)</h2>
 @if (Model.BootstrapAdminIds.Count == 0)
 {
-    <p class="text-muted">None configured.</p>
+    <p class="text-muted">Ingen konfigurert.</p>
 }
 else
 {
@@ -28,23 +28,23 @@ else
             <li>@id</li>
         }
     </ul>
-    <p class="text-muted">These are defined via the <code>Admin:DiscordUserIds</code> setting and cannot be removed here.</p>
+    <p class="text-muted">Disse defineres via innstillingen <code>Admin:DiscordUserIds</code> og kan ikke fjernes her.</p>
 }
 
-<h2>Database admins</h2>
+<h2>Administratorer i databasen</h2>
 @if (Model.Admins.Count == 0)
 {
-    <p class="text-muted">No database admins yet.</p>
+    <p class="text-muted">Ingen administratorer i databasen ennå.</p>
 }
 else
 {
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>Discord user id</th>
-                <th>Display name</th>
-                <th>Added (UTC)</th>
-                <th>Added by</th>
+                <th>Discord bruker-ID</th>
+                <th>Visningsnavn</th>
+                <th>Lagt til (UTC)</th>
+                <th>Lagt til av</th>
                 <th></th>
             </tr>
         </thead>
@@ -58,7 +58,7 @@ else
                 <td>@admin.AddedByDiscordUserId</td>
                 <td>
                     <form method="post" asp-page-handler="Remove" asp-route-discordUserId="@admin.DiscordUserId">
-                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                        <button type="submit" class="btn btn-danger btn-sm">Fjern</button>
                     </form>
                 </td>
             </tr>
@@ -69,7 +69,7 @@ else
 
 <hr />
 
-<h2>Add admin</h2>
+<h2>Legg til administrator</h2>
 <form method="post" asp-page-handler="Add" class="row g-3">
     <div class="col-md-5">
         <label class="form-label" asp-for="Input.DiscordUserId"></label>
@@ -82,7 +82,7 @@ else
         <span asp-validation-for="Input.DisplayName" class="text-danger"></span>
     </div>
     <div class="col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-success">Add</button>
+        <button type="submit" class="btn btn-success">Legg til</button>
     </div>
 </form>
 

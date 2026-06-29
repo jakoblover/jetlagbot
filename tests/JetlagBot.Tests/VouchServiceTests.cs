@@ -52,7 +52,7 @@ public class VouchServiceTests
         var result = await service.CreateVouchAsync(Request(Now.AddDays(-100)));
 
         Assert.False(result.Success);
-        Assert.Contains("365 days", result.ErrorMessage);
+        Assert.Contains("365 dager", result.ErrorMessage);
         Assert.Empty(db.Vouches);
     }
 
@@ -77,7 +77,7 @@ public class VouchServiceTests
         var result = await service.CreateVouchAsync(Request(Now.AddYears(-2), voucherId: VoucherId, targetId: VoucherId));
 
         Assert.False(result.Success);
-        Assert.Contains("yourself", result.ErrorMessage);
+        Assert.Contains("deg selv", result.ErrorMessage);
         Assert.Empty(db.Vouches);
     }
 
@@ -96,7 +96,7 @@ public class VouchServiceTests
         var second = await service.CreateVouchAsync(Request(Now.AddYears(-2), targetId: 444UL));
 
         Assert.False(second.Success);
-        Assert.Contains("once every 30 days", second.ErrorMessage);
+        Assert.Contains("hver 30", second.ErrorMessage);
         Assert.Single(db.Vouches);
     }
 

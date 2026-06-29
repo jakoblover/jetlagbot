@@ -29,10 +29,10 @@ public class AdminsModel : PageModel
     public class InputModel
     {
         [Required]
-        [Display(Name = "Discord user id")]
+        [Display(Name = "Discord bruker-ID")]
         public ulong DiscordUserId { get; set; }
 
-        [Display(Name = "Display name (optional)")]
+        [Display(Name = "Visningsnavn (valgfritt)")]
         [StringLength(256)]
         public string? DisplayName { get; set; }
     }
@@ -52,14 +52,14 @@ public class AdminsModel : PageModel
 
         var addedBy = GetCurrentUserId();
         await _adminService.AddAdminAsync(Input.DiscordUserId, Input.DisplayName, addedBy);
-        StatusMessage = $"Added {Input.DiscordUserId} to the admin allowlist.";
+        StatusMessage = $"La til {Input.DiscordUserId} i administrator-tillatelseslisten.";
         return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostRemoveAsync(ulong discordUserId)
     {
         await _adminService.RemoveAdminAsync(discordUserId);
-        StatusMessage = $"Removed {discordUserId} from the admin allowlist.";
+        StatusMessage = $"Fjernet {discordUserId} fra administrator-tillatelseslisten.";
         return RedirectToPage();
     }
 
