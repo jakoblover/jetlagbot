@@ -63,6 +63,7 @@ public class DiscordBotService : BackgroundService
         try
         {
             var commands = BuildCommands();
+            var noCommands = Array.Empty<ApplicationCommandProperties>();
 
             if (_options.DevGuildId is ulong devGuildId)
             {
@@ -70,37 +71,37 @@ public class DiscordBotService : BackgroundService
                 if (guild is null)
                 {
                     _logger.LogWarning("Configured DevGuildId {GuildId} was not found; registering commands globally.", devGuildId);
-                    await RegisterGlobalAsync(commands);
+                    await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
+                    _logger.LogInformation("Registered {Count} global slash commands.", commands.Length);
                 }
                 else
                 {
-                    foreach (var command in commands)
-                    {
-                        await guild.CreateApplicationCommandAsync(command);
-                    }
-
+                    // Replace the full set for this guild, deleting any stale commands.
+                    await guild.BulkOverwriteApplicationCommandAsync(commands);
                     _logger.LogInformation("Registered {Count} slash commands to guild {GuildId}.", commands.Length, devGuildId);
+
+                    // Clear global commands so they don't appear as duplicates alongside the guild commands.
+                    await _client.BulkOverwriteGlobalApplicationCommandsAsync(noCommands);
+                    _logger.LogInformation("Cleared global slash commands to prevent duplicates.");
                 }
             }
             else
             {
-                await RegisterGlobalAsync(commands);
+                // Global commands are the source of truth.
+                await _client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
+                _logger.LogInformation("Registered {Count} global slash commands.", commands.Length);
+
+                // Clear any leftover guild-scoped commands that would appear as duplicates.
+                foreach (var guild in _client.Guilds)
+                {
+                    await guild.BulkOverwriteApplicationCommandAsync(noCommands);
+                }
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to register slash commands.");
         }
-    }
-
-    private async Task RegisterGlobalAsync(ApplicationCommandProperties[] commands)
-    {
-        foreach (var command in commands)
-        {
-            await _client.CreateGlobalApplicationCommandAsync(command);
-        }
-
-        _logger.LogInformation("Registered {Count} global slash commands.", commands.Length);
     }
 
     private static ApplicationCommandProperties[] BuildCommands()
