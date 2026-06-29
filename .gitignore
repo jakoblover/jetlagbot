@@ -1,0 +1,32 @@
+## .NET build artifacts
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+artifacts/
+
+## IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+.idea/
+
+## Test results
+[Tt]est[Rr]esults/
+*.trx
+coverage*
+
+## Secrets / local config
+.env
+appsettings.*.local.json
+
+## Tooling (local agent state)
+.serena/
+
+## OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">JetlagBot</h1>
+    <p class="lead">A Discord vouch bot with a web-based administration panel.</p>
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <a class="btn btn-primary" asp-page="/Admin/Index">Go to admin panel</a>
+    }
+    else
+    {
+        <a class="btn btn-primary" asp-page="/Account/Login">Sign in with Discord</a>
+    }
+</div>

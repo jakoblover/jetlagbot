@@ -1,0 +1,89 @@
+@page
+@model JetlagBot.App.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Admin - Settings";
+}
+
+<h1>Guild settings</h1>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success">@Model.StatusMessage</div>
+}
+
+<p class="text-muted">
+    Configure the vouch rules per guild. <strong>Minimum membership age</strong> is how long a member must have
+    been in the server before vouching. <strong>Vouch cooldown</strong> is the minimum number of days between
+    vouches by the same member.
+</p>
+
+@if (Model.GuildSettings.Count == 0)
+{
+    <div class="alert alert-info">
+        No guild settings exist yet. They are created automatically the first time a vouch is attempted, or you can
+        create one below using the guild id.
+    </div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Guild id</th>
+                <th>Minimum membership age (days)</th>
+                <th>Vouch cooldown (days)</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var settings in Model.GuildSettings)
+        {
+            <tr>
+                <form method="post" asp-page-handler="Save">
+                    <td>
+                        <input type="hidden" name="Input.GuildId" value="@settings.GuildId" />
+                        @settings.GuildId
+                    </td>
+                    <td>
+                        <input class="form-control" type="number" min="0" name="Input.MinimumMembershipAgeDays" value="@settings.MinimumMembershipAgeDays" />
+                    </td>
+                    <td>
+                        <input class="form-control" type="number" min="0" name="Input.VouchCooldownDays" value="@settings.VouchCooldownDays" />
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </td>
+                </form>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+<hr />
+
+<h2>Add settings for a guild</h2>
+<form method="post" asp-page-handler="Save" class="row g-3">
+    <div class="col-md-4">
+        <label class="form-label" asp-for="Input.GuildId"></label>
+        <input class="form-control" asp-for="Input.GuildId" />
+        <span asp-validation-for="Input.GuildId" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label" asp-for="Input.MinimumMembershipAgeDays"></label>
+        <input class="form-control" asp-for="Input.MinimumMembershipAgeDays" value="365" />
+        <span asp-validation-for="Input.MinimumMembershipAgeDays" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label" asp-for="Input.VouchCooldownDays"></label>
+        <input class="form-control" asp-for="Input.VouchCooldownDays" value="30" />
+        <span asp-validation-for="Input.VouchCooldownDays" class="text-danger"></span>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-success">Add</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

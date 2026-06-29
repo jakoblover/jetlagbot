@@ -1,0 +1,25 @@
+# The PostgreSQL database is intentionally NOT defined here.
+# In production (Dokploy) the database is provisioned separately and provided
+# to the app via the ConnectionStrings__Default environment variable.
+services:
+  jetlagbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jetlagbot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Database (provided by Dokploy / external PostgreSQL)
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Database__MigrateOnStartup: ${Database__MigrateOnStartup:-true}
+      # Discord
+      Discord__BotToken: ${Discord__BotToken}
+      Discord__ClientId: ${Discord__ClientId}
+      Discord__ClientSecret: ${Discord__ClientSecret}
+      Discord__PrimaryGuildId: ${Discord__PrimaryGuildId:-}
+      Discord__DevGuildId: ${Discord__DevGuildId:-}
+      # Admin allowlist bootstrap (comma-separated handled via indexed vars below if needed)
+      Admin__DiscordUserIds__0: ${Admin__DiscordUserIds__0:-}

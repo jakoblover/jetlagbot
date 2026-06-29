@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/JetlagBot.App/JetlagBot.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/JetlagBot.Tests/JetlagBot.Tests.csproj" />
+  </Folder>
+</Solution>

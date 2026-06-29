@@ -1,0 +1,91 @@
+@page
+@model JetlagBot.App.Pages.Admin.AdminsModel
+@{
+    ViewData["Title"] = "Admin - Allowlist";
+}
+
+<h1>Admin allowlist</h1>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success">@Model.StatusMessage</div>
+}
+
+<p class="text-muted">
+    Users on this allowlist can sign in to the admin panel with their Discord account.
+</p>
+
+<h2>Bootstrap admins (from configuration)</h2>
+@if (Model.BootstrapAdminIds.Count == 0)
+{
+    <p class="text-muted">None configured.</p>
+}
+else
+{
+    <ul>
+        @foreach (var id in Model.BootstrapAdminIds)
+        {
+            <li>@id</li>
+        }
+    </ul>
+    <p class="text-muted">These are defined via the <code>Admin:DiscordUserIds</code> setting and cannot be removed here.</p>
+}
+
+<h2>Database admins</h2>
+@if (Model.Admins.Count == 0)
+{
+    <p class="text-muted">No database admins yet.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Discord user id</th>
+                <th>Display name</th>
+                <th>Added (UTC)</th>
+                <th>Added by</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var admin in Model.Admins)
+        {
+            <tr>
+                <td>@admin.DiscordUserId</td>
+                <td>@admin.DisplayName</td>
+                <td>@admin.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                <td>@admin.AddedByDiscordUserId</td>
+                <td>
+                    <form method="post" asp-page-handler="Remove" asp-route-discordUserId="@admin.DiscordUserId">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+<hr />
+
+<h2>Add admin</h2>
+<form method="post" asp-page-handler="Add" class="row g-3">
+    <div class="col-md-5">
+        <label class="form-label" asp-for="Input.DiscordUserId"></label>
+        <input class="form-control" asp-for="Input.DiscordUserId" />
+        <span asp-validation-for="Input.DiscordUserId" class="text-danger"></span>
+    </div>
+    <div class="col-md-5">
+        <label class="form-label" asp-for="Input.DisplayName"></label>
+        <input class="form-control" asp-for="Input.DisplayName" />
+        <span asp-validation-for="Input.DisplayName" class="text-danger"></span>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-success">Add</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
