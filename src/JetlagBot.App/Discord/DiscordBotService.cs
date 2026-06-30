@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using JetlagBot.App.Configuration;
 using JetlagBot.App.Services;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 
 namespace JetlagBot.App.Discord;
 
@@ -16,6 +17,10 @@ public class DiscordBotService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DiscordOptions _options;
     private readonly ILogger<DiscordBotService> _logger;
+
+    // Tracks threads we've already posted the vouch panel to, so duplicate ThreadCreated
+    // events (Discord re-raises these on gateway reconnects/resumes) don't post twice.
+    private readonly ConcurrentDictionary<ulong, byte> _panelPostedThreads = new();
 
     public DiscordBotService(
         DiscordSocketClient client,
@@ -264,12 +269,46 @@ public class DiscordBotService : BackgroundService
                 return;
             }
 
+            // A panel may already exist if the bot restarted, so check the thread's
+            // existing messages before relying on the in-memory guard below.
+            if (await PanelAlreadyPostedAsync(thread))
+            {
+                _panelPostedThreads.TryAdd(thread.Id, 0);
+                return;
+            }
+
+            // Atomic guard: only the first ThreadCreated for this thread (per process
+            // lifetime) gets past here, even if the event fires twice concurrently.
+            if (!_panelPostedThreads.TryAdd(thread.Id, 0))
+            {
+                return;
+            }
+
             await thread.SendMessageAsync(VouchComponentHandler.PanelText, components: VouchComponentHandler.BuildPanel());
             _logger.LogInformation("Posted vouch panel to thread {ThreadId} in guild {GuildId}.", thread.Id, thread.Guild.Id);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to post vouch panel to thread {ThreadId}.", thread.Id);
+        }
+    }
+
+    private async Task<bool> PanelAlreadyPostedAsync(SocketThreadChannel thread)
+    {
+        if (_client.CurrentUser?.Id is not ulong botId)
+        {
+            return false;
+        }
+
+        try
+        {
+            var messages = await thread.GetMessagesAsync(20).FlattenAsync();
+            return messages.Any(m => m.Author.Id == botId && m.Components.Count > 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not check thread {ThreadId} for an existing vouch panel.", thread.Id);
+            return false;
         }
     }
 
