@@ -9,6 +9,10 @@ public interface IVouchService
     Task<VouchResult> CreateVouchAsync(CreateVouchRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Vouch>> GetVouchesAsync(ulong guildId, ulong targetUserId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Vouch>> GetGuildVouchesAsync(ulong guildId, CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteVouchAsync(int vouchId, CancellationToken cancellationToken = default);
 }
 
 public class VouchService : IVouchService
@@ -87,5 +91,26 @@ public class VouchService : IVouchService
             .Where(v => v.GuildId == guildId && v.TargetUserId == targetUserId)
             .OrderByDescending(v => v.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Vouch>> GetGuildVouchesAsync(ulong guildId, CancellationToken cancellationToken = default)
+    {
+        return await _db.Vouches
+            .Where(v => v.GuildId == guildId)
+            .OrderByDescending(v => v.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> DeleteVouchAsync(int vouchId, CancellationToken cancellationToken = default)
+    {
+        var vouch = await _db.Vouches.FindAsync(new object?[] { vouchId }, cancellationToken);
+        if (vouch is null)
+        {
+            return false;
+        }
+
+        _db.Vouches.Remove(vouch);
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }

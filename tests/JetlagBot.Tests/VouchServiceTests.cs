@@ -160,4 +160,48 @@ public class VouchServiceTests
         Assert.True(result.Success);
         Assert.Null(result.Vouch!.Message);
     }
+
+    [Fact]
+    public async Task GetGuildVouches_ReturnsAllTargets_NewestFirst()
+    {
+        using var db = TestDb.CreateContext();
+        var clock = new FakeClock(Now);
+        var service = CreateService(db, clock);
+
+        await service.CreateVouchAsync(Request(Now.AddYears(-2), "for-333", voucherId: 1001UL, targetId: 333UL));
+        clock.UtcNow = Now.AddDays(40);
+        await service.CreateVouchAsync(Request(Now.AddYears(-2), "for-444", voucherId: 1002UL, targetId: 444UL));
+
+        var vouches = await service.GetGuildVouchesAsync(GuildId);
+
+        Assert.Equal(2, vouches.Count);
+        Assert.Equal("for-444", vouches[0].Message);
+        Assert.Equal("for-333", vouches[1].Message);
+    }
+
+    [Fact]
+    public async Task DeleteVouch_RemovesVouch_WhenItExists()
+    {
+        using var db = TestDb.CreateContext();
+        var service = CreateService(db, new FakeClock(Now));
+
+        var created = await service.CreateVouchAsync(Request(Now.AddYears(-2)));
+        var id = created.Vouch!.Id;
+
+        var deleted = await service.DeleteVouchAsync(id);
+
+        Assert.True(deleted);
+        Assert.Empty(db.Vouches);
+    }
+
+    [Fact]
+    public async Task DeleteVouch_ReturnsFalse_WhenMissing()
+    {
+        using var db = TestDb.CreateContext();
+        var service = CreateService(db, new FakeClock(Now));
+
+        var deleted = await service.DeleteVouchAsync(99999);
+
+        Assert.False(deleted);
+    }
 }

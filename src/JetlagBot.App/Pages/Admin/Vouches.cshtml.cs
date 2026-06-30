@@ -24,12 +24,34 @@ public class VouchesModel : PageModel
 
     public bool Searched { get; private set; }
 
+    [TempData]
+    public string? StatusMessage { get; set; }
+
     public async Task OnGetAsync()
     {
-        if (GuildId is ulong guildId && TargetUserId is ulong targetUserId)
+        await LoadAsync();
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(int id)
+    {
+        var deleted = await _vouchService.DeleteVouchAsync(id);
+        StatusMessage = deleted
+            ? $"Anbefaling #{id} ble slettet."
+            : $"Fant ingen anbefaling med ID {id}.";
+
+        return RedirectToPage(new { GuildId, TargetUserId });
+    }
+
+    private async Task LoadAsync()
+    {
+        if (GuildId is not ulong guildId)
         {
-            Searched = true;
-            Vouches = await _vouchService.GetVouchesAsync(guildId, targetUserId);
+            return;
         }
+
+        Searched = true;
+        Vouches = TargetUserId is ulong targetUserId
+            ? await _vouchService.GetVouchesAsync(guildId, targetUserId)
+            : await _vouchService.GetGuildVouchesAsync(guildId);
     }
 }

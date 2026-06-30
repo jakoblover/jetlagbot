@@ -6,7 +6,15 @@
 
 <h1>Anbefalinger</h1>
 
-<p class="text-muted">Søk i anbefalingene en bruker har mottatt ved hjelp av server-ID og målbrukerens ID.</p>
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success">@Model.StatusMessage</div>
+}
+
+<p class="text-muted">
+    Skriv inn en server-ID for å se alle anbefalinger som er gitt i den serveren. Du kan eventuelt fylle inn en
+    målbruker-ID for å bare vise anbefalingene én bestemt bruker har mottatt.
+</p>
 
 <form method="get" class="row g-3 mb-4">
     <div class="col-md-5">
@@ -14,7 +22,7 @@
         <input class="form-control" asp-for="GuildId" />
     </div>
     <div class="col-md-5">
-        <label class="form-label" asp-for="TargetUserId">Målbrukerens ID</label>
+        <label class="form-label" asp-for="TargetUserId">Målbruker-ID (valgfritt)</label>
         <input class="form-control" asp-for="TargetUserId" />
     </div>
     <div class="col-md-2 d-flex align-items-end">
@@ -26,18 +34,21 @@
 {
     @if (Model.Vouches.Count == 0)
     {
-        <div class="alert alert-info">Fant ingen anbefalinger for den brukeren i den serveren.</div>
+        <div class="alert alert-info">Fant ingen anbefalinger for denne serveren.</div>
     }
     else
     {
         <p>Fant @Model.Vouches.Count anbefaling(er).</p>
-        <table class="table table-striped">
+        <table class="table table-striped align-middle">
             <thead>
                 <tr>
                     <th>Dato (UTC)</th>
+                    <th>Mottaker</th>
+                    <th>Mottaker-ID</th>
                     <th>Anbefaler</th>
-                    <th>Anbefalerens ID</th>
+                    <th>Anbefaler-ID</th>
                     <th>Melding</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -45,9 +56,20 @@
             {
                 <tr>
                     <td>@vouch.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@vouch.TargetDisplayName</td>
+                    <td>@vouch.TargetUserId</td>
                     <td>@vouch.VoucherDisplayName</td>
                     <td>@vouch.VoucherUserId</td>
                     <td>@vouch.Message</td>
+                    <td>
+                        <form method="post" asp-page-handler="Delete"
+                              asp-route-id="@vouch.Id"
+                              asp-route-GuildId="@Model.GuildId"
+                              asp-route-TargetUserId="@Model.TargetUserId"
+                              onsubmit="return confirm('Er du sikker på at du vil slette denne anbefalingen?');">
+                            <button type="submit" class="btn btn-danger btn-sm">Slett</button>
+                        </form>
+                    </td>
                 </tr>
             }
             </tbody>
