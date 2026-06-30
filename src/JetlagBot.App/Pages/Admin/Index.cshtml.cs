@@ -36,6 +36,9 @@ public class IndexModel : PageModel
         [Range(0, 100000)]
         [Display(Name = "Karantenetid mellom anbefalinger (dager)")]
         public int VouchCooldownDays { get; set; }
+
+        [Display(Name = "Anbefalingskanal-ID (valgfritt)")]
+        public ulong? VouchChannelId { get; set; }
     }
 
     public async Task OnGetAsync()
@@ -51,7 +54,7 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        await _settingsService.UpdateAsync(Input.GuildId, Input.MinimumMembershipAgeDays, Input.VouchCooldownDays);
+        await _settingsService.UpdateAsync(Input.GuildId, Input.MinimumMembershipAgeDays, Input.VouchCooldownDays, Input.VouchChannelId);
         StatusMessage = $"Innstillinger for server {Input.GuildId} er lagret.";
         return RedirectToPage();
     }

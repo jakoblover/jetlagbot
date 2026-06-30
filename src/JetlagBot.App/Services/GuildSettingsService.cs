@@ -10,7 +10,7 @@ public interface IGuildSettingsService
 
     Task<IReadOnlyList<GuildSettings>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task UpdateAsync(ulong guildId, int minimumMembershipAgeDays, int vouchCooldownDays, CancellationToken cancellationToken = default);
+    Task UpdateAsync(ulong guildId, int minimumMembershipAgeDays, int vouchCooldownDays, ulong? vouchChannelId, CancellationToken cancellationToken = default);
 }
 
 public class GuildSettingsService : IGuildSettingsService
@@ -43,7 +43,7 @@ public class GuildSettingsService : IGuildSettingsService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task UpdateAsync(ulong guildId, int minimumMembershipAgeDays, int vouchCooldownDays, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(ulong guildId, int minimumMembershipAgeDays, int vouchCooldownDays, ulong? vouchChannelId, CancellationToken cancellationToken = default)
     {
         if (minimumMembershipAgeDays < 0)
         {
@@ -58,6 +58,7 @@ public class GuildSettingsService : IGuildSettingsService
         var settings = await GetOrCreateAsync(guildId, cancellationToken);
         settings.MinimumMembershipAgeDays = minimumMembershipAgeDays;
         settings.VouchCooldownDays = vouchCooldownDays;
+        settings.VouchChannelId = vouchChannelId;
         await _db.SaveChangesAsync(cancellationToken);
     }
 }

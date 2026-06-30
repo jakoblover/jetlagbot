@@ -122,7 +122,7 @@ public class VouchServiceTests
         using var db = TestDb.CreateContext();
         var clock = new FakeClock(Now);
         var settings = new GuildSettingsService(db);
-        await settings.UpdateAsync(GuildId, minimumMembershipAgeDays: 30, vouchCooldownDays: 7);
+        await settings.UpdateAsync(GuildId, minimumMembershipAgeDays: 30, vouchCooldownDays: 7, vouchChannelId: null);
         var service = new VouchService(db, settings, clock);
 
         // Joined 60 days ago: below default 365 but above the configured 30.

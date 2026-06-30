@@ -8,14 +8,18 @@ account. Data is stored in PostgreSQL via Entity Framework Core with migrations.
 
 - **`/vouch [user] [message?]`** — store a vouch for another member, with an optional message.
 - **`/vouches [user]`** — privately (ephemeral) list all vouches a member has received, with messages.
+- **Vouch button panel** — configure a channel per server; when a new thread is created there the bot
+  posts a public message with two buttons: one to give a member a vouch (with an optional message via
+  a pop-up) and one to view a member's vouches. Each click is answered privately (ephemeral) and the
+  buttons re-appear after every action.
 - **Restrictions** (all error messages are ephemeral):
   - You cannot vouch until you have been a member of the server for a configurable amount of time
     (default: 365 days).
   - You can only vouch once per configurable cooldown window (default: 30 days).
   - You cannot vouch for yourself.
 - **Admin web panel** (Discord login + user-id allowlist):
-  - View and edit the per-guild membership-age and cooldown rules.
-  - Browse the vouches a user has received.
+  - View and edit the per-guild membership-age, cooldown rules, and vouch-panel channel.
+  - Browse every vouch in a server (and delete vouches).
   - Manage the admin allowlist.
 
 ## Project structure

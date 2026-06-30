@@ -40,6 +40,7 @@ builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConf
     AlwaysDownloadUsers = false,
 }));
 builder.Services.AddScoped<VouchCommandHandler>();
+builder.Services.AddScoped<VouchComponentHandler>();
 builder.Services.AddHostedService<DiscordBotService>();
 
 // Authentication & authorization -------------------------------------------

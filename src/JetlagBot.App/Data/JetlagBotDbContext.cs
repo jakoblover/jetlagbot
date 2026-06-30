@@ -48,6 +48,7 @@ public class JetlagBotDbContext : DbContext
         {
             entity.HasKey(g => g.GuildId);
             entity.Property(g => g.GuildId).HasConversion(ulongToString);
+            entity.Property(g => g.VouchChannelId).HasConversion(nullableUlongToString);
         });
 
         modelBuilder.Entity<AdminUser>(entity =>

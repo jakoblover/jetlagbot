@@ -1,6 +1,7 @@
 using Discord;
 using Discord.WebSocket;
 using JetlagBot.App.Configuration;
+using JetlagBot.App.Services;
 using Microsoft.Extensions.Options;
 
 namespace JetlagBot.App.Discord;
@@ -39,6 +40,10 @@ public class DiscordBotService : BackgroundService
         _client.Log += OnLogAsync;
         _client.Ready += OnReadyAsync;
         _client.SlashCommandExecuted += OnSlashCommandExecutedAsync;
+        _client.ButtonExecuted += OnButtonExecutedAsync;
+        _client.SelectMenuExecuted += OnSelectMenuExecutedAsync;
+        _client.ModalSubmitted += OnModalSubmittedAsync;
+        _client.ThreadCreated += OnThreadCreatedAsync;
 
         await _client.LoginAsync(TokenType.Bot, _options.BotToken);
         await _client.StartAsync();
@@ -155,6 +160,116 @@ public class DiscordBotService : BackgroundService
             {
                 await command.RespondAsync(error, ephemeral: true);
             }
+        }
+    }
+
+    private async Task OnButtonExecutedAsync(SocketMessageComponent component)
+    {
+        await DispatchComponentAsync(
+            (handler) => handler.HandleButtonAsync(component),
+            component,
+            "button");
+    }
+
+    private async Task OnSelectMenuExecutedAsync(SocketMessageComponent component)
+    {
+        await DispatchComponentAsync(
+            (handler) => handler.HandleSelectMenuAsync(component),
+            component,
+            "select menu");
+    }
+
+    private async Task DispatchComponentAsync(
+        Func<VouchComponentHandler, Task> action,
+        SocketMessageComponent component,
+        string kind)
+    {
+        if (!component.Data.CustomId.StartsWith("vouch_", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var handler = scope.ServiceProvider.GetRequiredService<VouchComponentHandler>();
+
+        try
+        {
+            await action(handler);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling {Kind} interaction {CustomId}.", kind, component.Data.CustomId);
+            await RespondWithErrorAsync(component);
+        }
+    }
+
+    private async Task OnModalSubmittedAsync(SocketModal modal)
+    {
+        if (!modal.Data.CustomId.StartsWith("vouch_", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var handler = scope.ServiceProvider.GetRequiredService<VouchComponentHandler>();
+
+        try
+        {
+            await handler.HandleModalAsync(modal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling modal {CustomId}.", modal.Data.CustomId);
+
+            const string error = "Noe gikk galt. Prøv igjen senere.";
+            if (modal.HasResponded)
+            {
+                await modal.FollowupAsync(error, ephemeral: true);
+            }
+            else
+            {
+                await modal.RespondAsync(error, ephemeral: true);
+            }
+        }
+    }
+
+    private static async Task RespondWithErrorAsync(SocketMessageComponent component)
+    {
+        const string error = "Noe gikk galt. Prøv igjen senere.";
+        if (component.HasResponded)
+        {
+            await component.FollowupAsync(error, ephemeral: true);
+        }
+        else
+        {
+            await component.RespondAsync(error, ephemeral: true);
+        }
+    }
+
+    private async Task OnThreadCreatedAsync(SocketThreadChannel thread)
+    {
+        try
+        {
+            if (thread.ParentChannel?.Id is not ulong parentId)
+            {
+                return;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var settingsService = scope.ServiceProvider.GetRequiredService<IGuildSettingsService>();
+            var settings = await settingsService.GetOrCreateAsync(thread.Guild.Id);
+
+            if (settings.VouchChannelId != parentId)
+            {
+                return;
+            }
+
+            await thread.SendMessageAsync(VouchComponentHandler.PanelText, components: VouchComponentHandler.BuildPanel());
+            _logger.LogInformation("Posted vouch panel to thread {ThreadId} in guild {GuildId}.", thread.Id, thread.Guild.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to post vouch panel to thread {ThreadId}.", thread.Id);
         }
     }
 

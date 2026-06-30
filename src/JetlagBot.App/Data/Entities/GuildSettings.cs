@@ -15,4 +15,9 @@ public class GuildSettings
 
     /// <summary>Minimum number of days between vouches by the same member.</summary>
     public int VouchCooldownDays { get; set; } = DefaultVouchCooldownDays;
+
+    /// <summary>
+    /// Optional channel whose new threads get a public vouch button panel posted by the bot.
+    /// </summary>
+    public ulong? VouchChannelId { get; set; }
 }

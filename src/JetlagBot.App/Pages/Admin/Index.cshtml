@@ -14,7 +14,7 @@
 <p class="text-muted">
     Konfigurer anbefalingsreglene per server. <strong>Minimum medlemskapsalder</strong> er hvor lenge et medlem må ha
     vært i serveren før det kan anbefale. <strong>Karantenetid mellom anbefalinger</strong> er minste antall dager mellom
-    anbefalinger fra samme medlem.
+    anbefalinger fra samme medlem. <strong>Anbefalingskanal</strong> er kanalen der boten legger ut et knappepanel i nye tråder.
 </p>
 
 @if (Model.GuildSettings.Count == 0)
@@ -32,6 +32,7 @@ else
                 <th>Server-ID</th>
                 <th>Minimum medlemskapsalder (dager)</th>
                 <th>Karantenetid mellom anbefalinger (dager)</th>
+                <th>Anbefalingskanal-ID</th>
                 <th></th>
             </tr>
         </thead>
@@ -49,6 +50,9 @@ else
                     </td>
                     <td>
                         <input class="form-control" type="number" min="0" name="Input.VouchCooldownDays" value="@settings.VouchCooldownDays" />
+                    </td>
+                    <td>
+                        <input class="form-control" name="Input.VouchChannelId" value="@settings.VouchChannelId" />
                     </td>
                     <td>
                         <button type="submit" class="btn btn-primary">Lagre</button>
@@ -78,6 +82,11 @@ else
         <label class="form-label" asp-for="Input.VouchCooldownDays"></label>
         <input class="form-control" asp-for="Input.VouchCooldownDays" value="30" />
         <span asp-validation-for="Input.VouchCooldownDays" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label" asp-for="Input.VouchChannelId"></label>
+        <input class="form-control" asp-for="Input.VouchChannelId" />
+        <span asp-validation-for="Input.VouchChannelId" class="text-danger"></span>
     </div>
     <div class="col-md-2 d-flex align-items-end">
         <button type="submit" class="btn btn-success">Legg til</button>

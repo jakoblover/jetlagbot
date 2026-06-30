@@ -3,6 +3,7 @@ using System;
 using JetlagBot.App.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JetlagBot.App.Data.Migrations
 {
     [DbContext(typeof(JetlagBotDbContext))]
-    partial class JetlagBotDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260630092232_AddVouchChannelId")]
+    partial class AddVouchChannelId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
