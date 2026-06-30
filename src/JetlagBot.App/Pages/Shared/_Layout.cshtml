@@ -35,9 +35,6 @@
                                 <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Admins">Administratorer</a>
                             </li>
                         }
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Personvern</a>
-                        </li>
                     </ul>
                     <ul class="navbar-nav">
                         @if (User.Identity?.IsAuthenticated == true)
@@ -70,7 +67,7 @@
 
     <footer class="border-top footer text-muted">
         <div class="container">
-            &copy; 2026 - JetlagBot - <a asp-area="" asp-page="/Privacy">Personvern</a>
+            &copy; 2026 - JetlagBot
         </div>
     </footer>
 

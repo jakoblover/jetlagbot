@@ -12,14 +12,27 @@
 }
 
 <p class="text-muted">
-    Skriv inn en server-ID for å se alle anbefalinger som er gitt i den serveren. Du kan eventuelt fylle inn en
+    Velg en server for å se alle anbefalinger som er gitt der. Du kan eventuelt fylle inn en
     målbruker-ID for å bare vise anbefalingene én bestemt bruker har mottatt.
 </p>
 
+@if (Model.Guilds.Count == 0)
+{
+    <div class="alert alert-warning">
+        Boten er ikke koblet til noen servere akkurat nå, så listen er tom. Sørg for at boten kjører og er medlem av serveren.
+    </div>
+}
+
 <form method="get" class="row g-3 mb-4">
     <div class="col-md-5">
-        <label class="form-label" asp-for="GuildId">Server-ID</label>
-        <input class="form-control" asp-for="GuildId" />
+        <label class="form-label" asp-for="GuildId">Server</label>
+        <select class="form-select" asp-for="GuildId">
+            <option value="">— Velg server —</option>
+            @foreach (var guild in Model.Guilds)
+            {
+                <option value="@guild.Id">@guild.Name (@guild.Id)</option>
+            }
+        </select>
     </div>
     <div class="col-md-5">
         <label class="form-label" asp-for="TargetUserId">Målbruker-ID (valgfritt)</label>

@@ -37,7 +37,7 @@ public class IndexModel : PageModel
         [Display(Name = "Karantenetid mellom anbefalinger (dager)")]
         public int VouchCooldownDays { get; set; }
 
-        [Display(Name = "Anbefalingskanal-ID (valgfritt)")]
+        [Display(Name = "Automatisk panelkanal-ID (valgfritt)")]
         public ulong? VouchChannelId { get; set; }
     }
 

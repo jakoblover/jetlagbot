@@ -14,7 +14,8 @@
 <p class="text-muted">
     Konfigurer anbefalingsreglene per server. <strong>Minimum medlemskapsalder</strong> er hvor lenge et medlem må ha
     vært i serveren før det kan anbefale. <strong>Karantenetid mellom anbefalinger</strong> er minste antall dager mellom
-    anbefalinger fra samme medlem. <strong>Anbefalingskanal</strong> er kanalen der boten legger ut et knappepanel i nye tråder.
+    anbefalinger fra samme medlem. <strong>Automatisk panelkanal</strong> er kanalen der boten automatisk legger ut et
+    knappepanel i nye tråder. Kanalen må være en kanal som støtter tråder (f.eks. en forumkanal). Feltet er valgfritt.
 </p>
 
 @if (Model.GuildSettings.Count == 0)
@@ -32,7 +33,7 @@ else
                 <th>Server-ID</th>
                 <th>Minimum medlemskapsalder (dager)</th>
                 <th>Karantenetid mellom anbefalinger (dager)</th>
-                <th>Anbefalingskanal-ID</th>
+                <th>Automatisk panelkanal-ID</th>
                 <th></th>
             </tr>
         </thead>

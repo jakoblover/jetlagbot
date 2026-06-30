@@ -1,3 +1,4 @@
+using Discord.WebSocket;
 using JetlagBot.App.Data.Entities;
 using JetlagBot.App.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -8,10 +9,12 @@ namespace JetlagBot.App.Pages.Admin;
 public class VouchesModel : PageModel
 {
     private readonly IVouchService _vouchService;
+    private readonly DiscordSocketClient _client;
 
-    public VouchesModel(IVouchService vouchService)
+    public VouchesModel(IVouchService vouchService, DiscordSocketClient client)
     {
         _vouchService = vouchService;
+        _client = client;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -22,10 +25,14 @@ public class VouchesModel : PageModel
 
     public IReadOnlyList<Vouch> Vouches { get; private set; } = Array.Empty<Vouch>();
 
+    public IReadOnlyList<GuildOption> Guilds { get; private set; } = Array.Empty<GuildOption>();
+
     public bool Searched { get; private set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
+
+    public record GuildOption(ulong Id, string Name);
 
     public async Task OnGetAsync()
     {
@@ -44,6 +51,11 @@ public class VouchesModel : PageModel
 
     private async Task LoadAsync()
     {
+        Guilds = _client.Guilds
+            .Select(g => new GuildOption(g.Id, g.Name))
+            .OrderBy(g => g.Name)
+            .ToList();
+
         if (GuildId is not ulong guildId)
         {
             return;
