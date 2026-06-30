@@ -39,6 +39,7 @@ builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConf
     GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMembers,
     AlwaysDownloadUsers = false,
 }));
+builder.Services.AddSingleton<EphemeralResponder>();
 builder.Services.AddScoped<VouchCommandHandler>();
 builder.Services.AddScoped<VouchComponentHandler>();
 builder.Services.AddHostedService<DiscordBotService>();

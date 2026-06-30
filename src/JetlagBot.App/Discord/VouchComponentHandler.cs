@@ -24,11 +24,13 @@ public class VouchComponentHandler
 
     private readonly IVouchService _vouchService;
     private readonly DiscordSocketClient _client;
+    private readonly EphemeralResponder _responder;
 
-    public VouchComponentHandler(IVouchService vouchService, DiscordSocketClient client)
+    public VouchComponentHandler(IVouchService vouchService, DiscordSocketClient client, EphemeralResponder responder)
     {
         _vouchService = vouchService;
         _client = client;
+        _responder = responder;
     }
 
     /// <summary>Text of the public panel message posted in a thread.</summary>
@@ -61,13 +63,13 @@ public class VouchComponentHandler
     {
         if (component.GuildId is not ulong guildId)
         {
-            await component.RespondAsync("Denne handlingen kan bare brukes i en server.", ephemeral: true);
+            await _responder.RespondAsync(component, component.User.Id, "Denne handlingen kan bare brukes i en server.");
             return;
         }
 
         if (!TryGetSelectedUserId(component, out var targetUserId))
         {
-            await component.RespondAsync("Ingen bruker ble valgt.", ephemeral: true, components: BuildPanel());
+            await _responder.RespondAsync(component, component.User.Id, "Ingen bruker ble valgt.", BuildPanel());
             return;
         }
 
@@ -91,14 +93,14 @@ public class VouchComponentHandler
 
         if (modal.GuildId is not ulong guildId)
         {
-            await modal.RespondAsync("Denne handlingen kan bare brukes i en server.", ephemeral: true);
+            await _responder.RespondAsync(modal, modal.User.Id, "Denne handlingen kan bare brukes i en server.");
             return;
         }
 
         var targetIdText = modal.Data.CustomId[GiveModalPrefix.Length..];
         if (!ulong.TryParse(targetIdText, out var targetUserId))
         {
-            await modal.RespondAsync("Noe gikk galt. Prøv igjen.", ephemeral: true, components: BuildPanel());
+            await _responder.RespondAsync(modal, modal.User.Id, "Noe gikk galt. Prøv igjen.", BuildPanel());
             return;
         }
 
@@ -121,12 +123,12 @@ public class VouchComponentHandler
         var result = await _vouchService.CreateVouchAsync(request);
         var text = result.Success
             ? $"✅ Anbefalingen din av {MentionUtils.MentionUser(targetUserId)} er registrert."
-            : result.ErrorMessage;
+            : result.ErrorMessage ?? "Noe gikk galt. Prøv igjen senere.";
 
-        await modal.RespondAsync(text, ephemeral: true, components: BuildPanel());
+        await _responder.RespondAsync(modal, modal.User.Id, text, BuildPanel());
     }
 
-    private static async Task RespondWithUserSelectAsync(SocketMessageComponent component, string customId, string prompt)
+    private async Task RespondWithUserSelectAsync(SocketMessageComponent component, string customId, string prompt)
     {
         var menu = new SelectMenuBuilder()
             .WithCustomId(customId)
@@ -136,7 +138,7 @@ public class VouchComponentHandler
             .WithMaxValues(1);
 
         var components = new ComponentBuilder().WithSelectMenu(menu).Build();
-        await component.RespondAsync(prompt, components: components, ephemeral: true);
+        await _responder.RespondAsync(component, component.User.Id, prompt, components);
     }
 
     private static async Task ShowGiveModalAsync(SocketMessageComponent component, ulong targetUserId)
@@ -162,7 +164,7 @@ public class VouchComponentHandler
 
         if (vouches.Count == 0)
         {
-            await component.RespondAsync($"{targetName} har ingen anbefalinger ennå.", ephemeral: true, components: BuildPanel());
+            await _responder.RespondAsync(component, component.User.Id, $"{targetName} har ingen anbefalinger ennå.", BuildPanel());
             return;
         }
 
@@ -186,7 +188,7 @@ public class VouchComponentHandler
             builder.AppendLine(line);
         }
 
-        await component.RespondAsync(builder.ToString(), ephemeral: true, components: BuildPanel());
+        await _responder.RespondAsync(component, component.User.Id, builder.ToString(), BuildPanel());
     }
 
     private static bool TryGetSelectedUserId(SocketMessageComponent component, out ulong userId)

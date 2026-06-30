@@ -11,17 +11,19 @@ public class VouchCommandHandler
     private const int MaxResponseLength = 1900;
 
     private readonly IVouchService _vouchService;
+    private readonly EphemeralResponder _responder;
 
-    public VouchCommandHandler(IVouchService vouchService)
+    public VouchCommandHandler(IVouchService vouchService, EphemeralResponder responder)
     {
         _vouchService = vouchService;
+        _responder = responder;
     }
 
     public async Task HandleVouchAsync(SocketSlashCommand command)
     {
         if (command.GuildId is not ulong guildId)
         {
-            await command.RespondAsync("Denne kommandoen kan bare brukes i en server.", ephemeral: true);
+            await _responder.RespondAsync(command, command.User.Id, "Denne kommandoen kan bare brukes i en server.");
             return;
         }
 
@@ -43,18 +45,18 @@ public class VouchCommandHandler
 
         if (!result.Success)
         {
-            await command.RespondAsync(result.ErrorMessage, ephemeral: true);
+            await _responder.RespondAsync(command, command.User.Id, result.ErrorMessage ?? "Noe gikk galt. Prøv igjen senere.");
             return;
         }
 
-        await command.RespondAsync($"Anbefalingen din av {target.Mention} er registrert.", ephemeral: true);
+        await _responder.RespondAsync(command, command.User.Id, $"Anbefalingen din av {target.Mention} er registrert.");
     }
 
     public async Task HandleVouchesAsync(SocketSlashCommand command)
     {
         if (command.GuildId is not ulong guildId)
         {
-            await command.RespondAsync("Denne kommandoen kan bare brukes i en server.", ephemeral: true);
+            await _responder.RespondAsync(command, command.User.Id, "Denne kommandoen kan bare brukes i en server.");
             return;
         }
 
@@ -64,7 +66,7 @@ public class VouchCommandHandler
 
         if (vouches.Count == 0)
         {
-            await command.RespondAsync($"{targetName} har ingen anbefalinger ennå.", ephemeral: true);
+            await _responder.RespondAsync(command, command.User.Id, $"{targetName} har ingen anbefalinger ennå.");
             return;
         }
 
@@ -94,7 +96,7 @@ public class VouchCommandHandler
             builder.AppendLine("_(listen er forkortet; det finnes flere anbefalinger)_");
         }
 
-        await command.RespondAsync(builder.ToString(), ephemeral: true);
+        await _responder.RespondAsync(command, command.User.Id, builder.ToString());
     }
 
     private static string GetDisplayName(IUser user)
