@@ -164,10 +164,20 @@ public class BonusAlertServiceTests
         return new BonusAlertService(
             db,
             dmSender,
-            new NoopHttpClientFactory(),
+            new EmptyStoreCatalog(),
             new FakeClock(Now),
             options,
             NullLogger<BonusAlertService>.Instance);
+    }
+
+    private sealed class EmptyStoreCatalog : IBonusStoreCatalogCache
+    {
+        public bool HasData => false;
+
+        public IReadOnlyList<BonusStoreOption> Search(string? query, int take = 25) => [];
+
+        public Task RefreshIfNeededAsync(TimeSpan maxAge, TimeSpan timeout, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class CapturingDmSender : IDiscordDmSender
@@ -179,10 +189,5 @@ public class BonusAlertServiceTests
             SentUserIds.Add(discordUserId);
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class NoopHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new();
     }
 }

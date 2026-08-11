@@ -48,43 +48,52 @@ public sealed class BonusCommandHandler(
 
     public async Task HandleAutocompleteAsync(SocketAutocompleteInteraction interaction)
     {
+        // Discord rejects autocomplete after 3s. Always answer quickly, even with an empty list.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
         var focused = interaction.Data.Current;
         var query = focused.Value?.ToString() ?? string.Empty;
         var subcommand = interaction.Data.Options.FirstOrDefault()?.Name;
 
-        IReadOnlyList<BonusStoreOption> options;
-        if (subcommand == "unsubscribe")
+        IReadOnlyList<BonusStoreOption> options = [];
+        try
         {
-            var subscriptions = await bonusAlertService.GetSubscriptionsAsync(interaction.User.Id);
-            options = subscriptions
-                .Select(subscription => new BonusStoreOption
-                {
-                    StoreKey = subscription.StoreKey,
-                    DisplayName = subscription.StoreDisplayName,
-                })
-                .Where(store =>
-                    string.IsNullOrWhiteSpace(query)
-                    || store.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .Take(MaxAutocompleteResults)
-                .ToArray();
-        }
-        else
-        {
-            try
+            if (subcommand == "unsubscribe")
             {
-                options = (await bonusAlertService.SearchSubscribableStoresAsync(query))
+                var subscriptions = await bonusAlertService
+                    .GetSubscriptionsAsync(interaction.User.Id, timeout.Token)
+                    .ConfigureAwait(false);
+                options = subscriptions
+                    .Select(subscription => new BonusStoreOption
+                    {
+                        StoreKey = subscription.StoreKey,
+                        DisplayName = subscription.StoreDisplayName,
+                    })
+                    .Where(store =>
+                        string.IsNullOrWhiteSpace(query)
+                        || store.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                     .Take(MaxAutocompleteResults)
                     .ToArray();
             }
-            catch (Exception exception)
+            else
             {
-                logger.LogWarning(
-                    exception,
-                    "Bonus subscribe autocomplete failed for query '{Query}'.",
-                    query);
-                options = [];
+                options = (await bonusAlertService
+                        .SearchSubscribableStoresAsync(query, timeout.Token)
+                        .ConfigureAwait(false))
+                    .Take(MaxAutocompleteResults)
+                    .ToArray();
             }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                exception,
+                "Bonus autocomplete failed for query '{Query}'.",
+                query);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogDebug("Bonus autocomplete timed out for query '{Query}'; returning empty list.", query);
         }
 
         var results = options
@@ -93,13 +102,17 @@ public sealed class BonusCommandHandler(
                 store.StoreKey))
             .ToArray();
 
-        logger.LogDebug(
-            "Bonus autocomplete ({Subcommand}) query='{Query}' returned {Count} options.",
-            subcommand ?? "subscribe",
-            query,
-            results.Length);
-
-        await interaction.RespondAsync(results);
+        try
+        {
+            await interaction.RespondAsync(results).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning(
+                "Missed Discord 3s autocomplete window for query '{Query}' ({Count} options ready too late).",
+                query,
+                results.Length);
+        }
     }
 
     private async Task HandleSubscribeAsync(SocketSlashCommand command, SocketSlashCommandDataOption subcommand)

@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.Json;
 using Discord;
 using JetlagBot.App.Configuration;
 using JetlagBot.App.Data;
@@ -49,13 +48,11 @@ public interface IBonusAlertService
 public sealed class BonusAlertService(
     JetlagBotDbContext db,
     IDiscordDmSender dmSender,
-    IHttpClientFactory httpClientFactory,
+    IBonusStoreCatalogCache storeCatalog,
     IClock clock,
     IOptions<BonusAlertOptions> options,
     ILogger<BonusAlertService> logger) : IBonusAlertService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public async Task<BonusUpdatesResult> ProcessUpdatesAsync(
         BonusUpdatesRequest request,
         CancellationToken cancellationToken = default)
@@ -289,318 +286,28 @@ public sealed class BonusAlertService(
         string? query,
         CancellationToken cancellationToken = default)
     {
-        var baseUrl = options.Value.BonusTrackerBaseUrl?.Trim().TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(baseUrl))
+        // Discord autocomplete has a hard 3s limit. Prefer cache; only briefly try a refresh.
+        await storeCatalog
+            .RefreshIfNeededAsync(
+                maxAge: TimeSpan.FromMinutes(30),
+                timeout: TimeSpan.FromMilliseconds(900),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var cached = storeCatalog.Search(query, take: 25);
+        if (cached.Count > 0 || storeCatalog.HasData)
         {
-            logger.LogWarning(
-                "BonusAlert:BonusTrackerBaseUrl is not set; Discord store autocomplete cannot search by name.");
-            return [];
+            return cached;
         }
 
-        var apiKey = options.Value.ApiKey?.Trim();
-        var client = httpClientFactory.CreateClient(nameof(BonusAlertService));
-        var queryText = query?.Trim() ?? string.Empty;
-
-        Exception? lastError = null;
-        foreach (var (path, requiresApiKey) in ResolveStoresPaths())
-        {
-            if (requiresApiKey && string.IsNullOrWhiteSpace(apiKey))
-            {
-                continue;
-            }
-
-            var queryString = requiresApiKey
-                ? (string.IsNullOrWhiteSpace(queryText) ? string.Empty : $"query={Uri.EscapeDataString(queryText)}")
-                : BuildPublicUnifiedQuery(queryText);
-            var url = string.IsNullOrEmpty(queryString)
-                ? $"{baseUrl}{path}"
-                : $"{baseUrl}{path}?{queryString}";
-
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.TryAddWithoutValidation("Accept", "application/json");
-                request.Headers.TryAddWithoutValidation(
-                    "User-Agent",
-                    "JetlagBot/1.0 (BonusAlerts; server-to-server)");
-                if (requiresApiKey && !string.IsNullOrWhiteSpace(apiKey))
-                {
-                    // Same value as bonus-tracker JETLAGBOT_API_KEY / JetlagBot:SharedApiKey
-                    request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
-                }
-
-                using var response = await client.SendAsync(request, cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    // 404 is expected when a path is not deployed yet — keep noise low.
-                    if ((int)response.StatusCode == 404)
-                    {
-                        logger.LogDebug("Store search {Url} returned 404; trying next path.", url);
-                    }
-                    else
-                    {
-                        logger.LogWarning(
-                            "Store search {Url} returned {StatusCode}. RequiresApiKey={RequiresApiKey}.",
-                            url,
-                            (int)response.StatusCode,
-                            requiresApiKey);
-                    }
-
-                    continue;
-                }
-
-                var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                if (string.IsNullOrWhiteSpace(body)
-                    || body.TrimStart().StartsWith('<')
-                    || (!mediaType.Contains("json", StringComparison.OrdinalIgnoreCase)
-                        && !body.TrimStart().StartsWith('{')))
-                {
-                    // Public SPA often returns index.html (200) for unproxied /api/* paths.
-                    logger.LogDebug(
-                        "Store search {Url} returned non-JSON content-type '{MediaType}'; trying next path.",
-                        url,
-                        mediaType);
-                    continue;
-                }
-
-                using var document = JsonDocument.Parse(body);
-                if (!document.RootElement.TryGetProperty("items", out var items)
-                    && !document.RootElement.TryGetProperty("Items", out items))
-                {
-                    logger.LogWarning("Store search {Url} response had no items array.", url);
-                    continue;
-                }
-
-                var results = ParseStoreOptions(items);
-                if (!string.IsNullOrWhiteSpace(queryText))
-                {
-                    results = results
-                        .Where(store =>
-                            store.DisplayName.Contains(queryText, StringComparison.OrdinalIgnoreCase)
-                            || store.StoreKey.Contains(queryText, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                }
-
-                results = results
-                    .GroupBy(store => store.StoreKey, StringComparer.Ordinal)
-                    .Select(group => group.First())
-                    .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                    .ToList();
-
-                logger.LogInformation(
-                    "Store search via {Url} returned {Count} options for query '{Query}'.",
-                    url,
-                    results.Count,
-                    queryText);
-                return results;
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                lastError = exception;
-                logger.LogDebug(exception, "Store search failed for {Url}; trying next path.", url);
-            }
-        }
-
-        if (lastError is not null)
-        {
-            logger.LogWarning(
-                lastError,
-                "All Bonus Tracker store search paths failed for base URL {BaseUrl}.",
-                baseUrl);
-        }
-
-        return [];
-    }
-
-    private IEnumerable<(string Path, bool RequiresApiKey)> ResolveStoresPaths()
-    {
-        var configured = options.Value.BonusTrackerStoresPath?.Trim();
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            var path = configured.StartsWith('/') ? configured : "/" + configured;
-            var requiresKey = path.Contains("/internal/jetlag", StringComparison.OrdinalIgnoreCase);
-            yield return (path, requiresKey);
-            yield break;
-        }
-
-        var baseUrl = options.Value.BonusTrackerBaseUrl?.Trim().TrimEnd('/') ?? string.Empty;
-        var looksLikePublicSite = LooksLikePublicFrontendBaseUrl(baseUrl);
-
-        if (looksLikePublicSite)
-        {
-            // Public origin (eb.loever.net): nginx only proxies /api/bff/* to the BFF.
-            // /api/internal/* falls through to the SPA and returns HTML — skip it.
-            yield return ("/api/bff/stores/unified", false);
-            yield return ("/api/bff/internal/jetlag/stores", true);
-            yield break;
-        }
-
-        // Direct BFF base URL (http://bff:8080, internal host, etc.).
-        yield return ("/api/internal/jetlag/stores", true);
-        yield return ("/api/stores/unified", false);
-        yield return ("/api/web/v1/stores/unified", false);
-    }
-
-    private static bool LooksLikePublicFrontendBaseUrl(string baseUrl)
-    {
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            return false;
-        }
-
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        // Heuristic: public HTTPS website hosts (not raw BFF service names / localhost ports).
-        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            && !uri.IsLoopback
-            && uri.Port is 443 or 80)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static string BuildPublicUnifiedQuery(string queryText)
-    {
-        var search = new List<string> { "take=200", "activeOnly=false" };
-        if (!string.IsNullOrWhiteSpace(queryText))
-        {
-            search.Add($"query={Uri.EscapeDataString(queryText)}");
-        }
-
-        return string.Join('&', search);
-    }
-
-    private static List<BonusStoreOption> ParseStoreOptions(JsonElement items)
-    {
-        var results = new List<BonusStoreOption>();
-        foreach (var item in items.EnumerateArray())
-        {
-            // Internal Jetlag endpoint: { storeKey, displayName }
-            var storeKey = ReadString(item, "storeKey") ?? ReadString(item, "StoreKey");
-            var simpleName = ReadString(item, "displayName") ?? ReadString(item, "DisplayName");
-            if (!string.IsNullOrWhiteSpace(storeKey) && !string.IsNullOrWhiteSpace(simpleName))
-            {
-                results.Add(new BonusStoreOption
-                {
-                    StoreKey = storeKey,
-                    DisplayName = simpleName,
-                });
-                continue;
-            }
-
-            var displayName = simpleName
-                ?? FirstNestedStoreName(item)
-                ?? "Ukjent butikk";
-
-            var mappingId = ReadGuid(item, "storeMappingId") ?? ReadGuid(item, "StoreMappingId");
-            if (mappingId is Guid mapped)
-            {
-                results.Add(new BonusStoreOption
-                {
-                    StoreKey = mapped.ToString("D"),
-                    DisplayName = displayName,
-                });
-                continue;
-            }
-
-            // Unmapped / auto-grouped rows: still allow subscribe by a concrete source store id.
-            foreach (var storeId in NestedStoreIds(item))
-            {
-                results.Add(new BonusStoreOption
-                {
-                    StoreKey = storeId.ToString("D"),
-                    DisplayName = displayName,
-                });
-            }
-        }
-
-        return results;
-    }
-
-    private static IEnumerable<Guid> NestedStoreIds(JsonElement item)
-    {
-        foreach (var propertyName in new[]
-                 {
-                     "trumfStores", "TrumfStores",
-                     "sasStores", "SasStores",
-                     "trumfFordelStores", "TrumfFordelStores",
-                 })
-        {
-            if (!item.TryGetProperty(propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
-            {
-                continue;
-            }
-
-            foreach (var store in array.EnumerateArray())
-            {
-                var id = ReadGuid(store, "id") ?? ReadGuid(store, "Id");
-                if (id is Guid storeId)
-                {
-                    yield return storeId;
-                }
-            }
-        }
-
-        foreach (var propertyName in new[] { "trumf", "Trumf", "sas", "Sas", "trumfFordel", "TrumfFordel" })
-        {
-            if (!item.TryGetProperty(propertyName, out var store) || store.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var id = ReadGuid(store, "id") ?? ReadGuid(store, "Id");
-            if (id is Guid storeId)
-            {
-                yield return storeId;
-            }
-        }
-    }
-
-    private static string? FirstNestedStoreName(JsonElement item)
-    {
-        foreach (var propertyName in new[]
-                 {
-                     "trumfStores", "TrumfStores",
-                     "sasStores", "SasStores",
-                     "trumfFordelStores", "TrumfFordelStores",
-                 })
-        {
-            if (!item.TryGetProperty(propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
-            {
-                continue;
-            }
-
-            foreach (var store in array.EnumerateArray())
-            {
-                var name = ReadString(store, "name") ?? ReadString(store, "Name");
-                if (!string.IsNullOrWhiteSpace(name))
-                {
-                    return name;
-                }
-            }
-        }
-
-        foreach (var propertyName in new[] { "trumf", "Trumf", "sas", "Sas", "trumfFordel", "TrumfFordel" })
-        {
-            if (!item.TryGetProperty(propertyName, out var store) || store.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var name = ReadString(store, "name") ?? ReadString(store, "Name");
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
-        }
-
-        return null;
+        // Cold cache and short refresh failed — one longer attempt (slash subscribe, not autocomplete).
+        await storeCatalog
+            .RefreshIfNeededAsync(
+                maxAge: TimeSpan.Zero,
+                timeout: TimeSpan.FromSeconds(5),
+                cancellationToken)
+            .ConfigureAwait(false);
+        return storeCatalog.Search(query, take: 25);
     }
 
     public static IReadOnlyList<string> MatchKeysFor(BonusStoreUpdateDto update)
@@ -629,21 +336,31 @@ public sealed class BonusAlertService(
             return null;
         }
 
+        await storeCatalog
+            .RefreshIfNeededAsync(
+                maxAge: TimeSpan.FromMinutes(30),
+                timeout: TimeSpan.FromSeconds(5),
+                cancellationToken)
+            .ConfigureAwait(false);
+
         if (Guid.TryParse(query, out _))
         {
-            var byKey = await SearchSubscribableStoresAsync(null, cancellationToken);
-            var exact = byKey.FirstOrDefault(store =>
+            var byKey = storeCatalog.Search(null, take: 25);
+            // Search with null only returns first 25 — look up key across a broader filter via name query empty
+            // Prefer direct key match from a name-less search of cache: use Search with empty and also try query as key.
+            var allMatches = storeCatalog.Search(query, take: 25);
+            var exactKey = allMatches.FirstOrDefault(store =>
                 string.Equals(store.StoreKey, query, StringComparison.Ordinal));
-            if (exact is not null)
+            if (exactKey is not null)
             {
-                return exact;
+                return exactKey;
             }
 
-            // User may have picked a key from autocomplete even if the store list is temporarily empty.
+            // Autocomplete value is often the store mapping GUID even when catalog is cold.
             return new BonusStoreOption { StoreKey = query, DisplayName = query };
         }
 
-        var matches = await SearchSubscribableStoresAsync(query, cancellationToken);
+        var matches = storeCatalog.Search(query, take: 25);
         var exactName = matches.FirstOrDefault(store =>
             string.Equals(store.DisplayName, query, StringComparison.OrdinalIgnoreCase));
         if (exactName is not null)
@@ -730,32 +447,5 @@ public sealed class BonusAlertService(
     private static string Truncate(string value, int maxLength)
     {
         return value.Length <= maxLength ? value : string.Concat(value.AsSpan(0, maxLength - 3), "...");
-    }
-
-    private static Guid? ReadGuid(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind == JsonValueKind.Null)
-        {
-            return null;
-        }
-
-        if (property.ValueKind == JsonValueKind.String
-            && Guid.TryParse(property.GetString(), out var guid))
-        {
-            return guid;
-        }
-
-        return null;
-    }
-
-    private static string? ReadString(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String)
-        {
-            return null;
-        }
-
-        var value = property.GetString();
-        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

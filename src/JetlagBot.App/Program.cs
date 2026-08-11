@@ -36,10 +36,13 @@ builder.Services.AddScoped<IGuildSettingsService, GuildSettingsService>();
 builder.Services.AddScoped<IVouchService, VouchService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddSingleton<IDiscordDmSender, DiscordDmSender>();
+builder.Services.AddSingleton<IBonusStoreCatalogCache, BonusStoreCatalogCache>();
+builder.Services.AddHostedService<BonusStoreCatalogRefreshWorker>();
 builder.Services.AddScoped<IBonusAlertService, BonusAlertService>();
+// Keep short: Discord autocomplete must finish in <3s; long 502 waits block the gateway.
 builder.Services.AddHttpClient(nameof(BonusAlertService), client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(15);
+    client.Timeout = TimeSpan.FromSeconds(2);
     client.DefaultRequestHeaders.TryAddWithoutValidation(
         "User-Agent",
         "JetlagBot/1.0 (BonusAlerts; server-to-server)");
