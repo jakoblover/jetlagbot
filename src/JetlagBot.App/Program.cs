@@ -40,13 +40,13 @@ builder.Services.AddSingleton<IBonusStoreCatalogCache, BonusStoreCatalogCache>()
 builder.Services.AddHostedService<BonusStoreCatalogRefreshWorker>();
 builder.Services.AddScoped<IBonusAlertService, BonusAlertService>();
 // Catalog refresh is a single fast BFF call; autocomplete uses memory only.
-// Keep timeout moderate so a cold catalog load can finish without 499 client aborts.
+// Use a browser-like User-Agent: Cloudflare/WAF often returns 403 for custom bot UAs.
 builder.Services.AddHttpClient(nameof(BonusAlertService), client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.TryAddWithoutValidation(
         "User-Agent",
-        "JetlagBot/1.0 (BonusAlerts; server-to-server)");
+        "Mozilla/5.0 (compatible; BonusTrackerJetlag/1.0; +https://eb.loever.net)");
     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
 });
 

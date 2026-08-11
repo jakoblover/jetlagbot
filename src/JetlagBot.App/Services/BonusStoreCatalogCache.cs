@@ -163,16 +163,19 @@ public sealed class BonusStoreCatalogCache(
                 request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
 
                 using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
+                    var preview = body.Length <= 180 ? body : body[..180];
                     logger.LogWarning(
-                        "Protected catalog fetch {Url} returned {StatusCode}.",
+                        "Protected catalog fetch {Url} returned {StatusCode}. BodyPreview={Preview}. " +
+                        "401 = wrong/missing API key on BFF or JetlagBot. 403 = often Cloudflare/WAF (not our API auth).",
                         url,
-                        (int)response.StatusCode);
+                        (int)response.StatusCode,
+                        preview.Replace('\n', ' ').Replace('\r', ' '));
                     continue;
                 }
 
-                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(body)
                     || body.TrimStart().StartsWith('<')
                     || !body.TrimStart().StartsWith('{'))
@@ -229,11 +232,14 @@ public sealed class BonusStoreCatalogCache(
         if (LooksLikePublicFrontendBaseUrl(baseUrl))
         {
             // Public site: Traefik → frontend nginx proxies /api/bff/* → BFF /api/*
+            // Prefer /jetlag/v1 (less likely to be blocked than paths containing "internal").
+            yield return "/api/bff/jetlag/v1/stores";
             yield return "/api/bff/internal/jetlag/stores";
             yield break;
         }
 
         // Direct BFF base URL (same Docker network).
+        yield return "/api/jetlag/v1/stores";
         yield return "/api/internal/jetlag/stores";
     }
 
