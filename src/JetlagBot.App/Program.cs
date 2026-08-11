@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using AspNet.Security.OAuth.Discord;
 using Discord;
 using Discord.WebSocket;
@@ -18,6 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<DiscordOptions>(builder.Configuration.GetSection(DiscordOptions.SectionName));
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+builder.Services.Configure<BonusAlertOptions>(builder.Configuration.GetSection(BonusAlertOptions.SectionName));
 
 var discordOptions = builder.Configuration.GetSection(DiscordOptions.SectionName).Get<DiscordOptions>() ?? new DiscordOptions();
 
@@ -32,6 +35,12 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<IGuildSettingsService, GuildSettingsService>();
 builder.Services.AddScoped<IVouchService, VouchService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddSingleton<IDiscordDmSender, DiscordDmSender>();
+builder.Services.AddScoped<IBonusAlertService, BonusAlertService>();
+builder.Services.AddHttpClient(nameof(BonusAlertService), client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 // Discord bot ---------------------------------------------------------------
 builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConfig
@@ -42,6 +51,7 @@ builder.Services.AddSingleton(_ => new DiscordSocketClient(new DiscordSocketConf
 builder.Services.AddSingleton<EphemeralResponder>();
 builder.Services.AddScoped<VouchCommandHandler>();
 builder.Services.AddScoped<VouchComponentHandler>();
+builder.Services.AddScoped<BonusCommandHandler>();
 builder.Services.AddHostedService<DiscordBotService>();
 
 // Authentication & authorization -------------------------------------------
@@ -87,6 +97,7 @@ builder.Services.AddScoped<IAuthorizationHandler, AdminAuthorizationHandler>();
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/Admin", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Bonus");
 });
 
 // Honor X-Forwarded-* headers so the app knows the original https scheme/host when
@@ -119,9 +130,44 @@ app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();
 
+app.MapPost("/api/internal/bonus-updates", async (
+    BonusUpdatesRequest request,
+    HttpRequest httpRequest,
+    IBonusAlertService bonusAlertService,
+    IOptions<BonusAlertOptions> bonusAlertOptions,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsValidInternalApiKey(httpRequest, bonusAlertOptions.Value.ApiKey))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await bonusAlertService.ProcessUpdatesAsync(request, cancellationToken);
+    return Results.Ok(result);
+});
+
 await InitializeDatabaseAsync(app);
 
 app.Run();
+
+static bool IsValidInternalApiKey(HttpRequest request, string? configuredApiKey)
+{
+    if (string.IsNullOrWhiteSpace(configuredApiKey))
+    {
+        return false;
+    }
+
+    if (!request.Headers.TryGetValue("X-Api-Key", out var provided)
+        || string.IsNullOrWhiteSpace(provided))
+    {
+        return false;
+    }
+
+    var expected = Encoding.UTF8.GetBytes(configuredApiKey);
+    var actual = Encoding.UTF8.GetBytes(provided.ToString());
+    return expected.Length == actual.Length
+        && CryptographicOperations.FixedTimeEquals(expected, actual);
+}
 
 static async Task InitializeDatabaseAsync(WebApplication app)
 {

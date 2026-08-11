@@ -28,7 +28,7 @@ public class LoginModel : PageModel
             return Page();
         }
 
-        returnUrl ??= Url.Page("/Admin/Index");
+        returnUrl ??= Url.Page("/Bonus/Index");
         var properties = new AuthenticationProperties { RedirectUri = returnUrl };
         return Challenge(properties, DiscordAuthenticationDefaults.AuthenticationScheme);
     }

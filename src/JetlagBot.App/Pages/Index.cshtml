@@ -6,14 +6,17 @@
 
 <div class="text-center">
     <h1 class="display-4">JetlagBot</h1>
-    <p class="lead">En Discord-anbefalingsbot med et nettbasert administrasjonspanel.</p>
+    <p class="lead">Discord-bot for anbefalinger og personlige bonusvarsler.</p>
 
-    @if (User.Identity?.IsAuthenticated == true)
-    {
-        <a class="btn btn-primary" asp-page="/Admin/Index">Gå til administrasjonspanelet</a>
-    }
-    else
-    {
-        <a class="btn btn-primary" asp-page="/Account/Login">Logg inn med Discord</a>
-    }
+    <div class="d-flex gap-2 justify-content-center flex-wrap">
+        <a class="btn btn-primary" asp-page="/Bonus/Index">Bonusvarsler</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a class="btn btn-outline-secondary" asp-page="/Admin/Index">Administrasjon</a>
+        }
+        else
+        {
+            <a class="btn btn-outline-secondary" asp-page="/Account/Login">Logg inn med Discord</a>
+        }
+    </div>
 </div>

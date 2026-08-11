@@ -17,6 +17,8 @@ public class JetlagBotDbContext : DbContext
 
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
 
+    public DbSet<BonusStoreSubscription> BonusStoreSubscriptions => Set<BonusStoreSubscription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -57,6 +59,16 @@ public class JetlagBotDbContext : DbContext
             entity.Property(a => a.DiscordUserId).HasConversion(ulongToString);
             entity.Property(a => a.AddedByDiscordUserId).HasConversion(nullableUlongToString);
             entity.Property(a => a.DisplayName).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<BonusStoreSubscription>(entity =>
+        {
+            entity.HasKey(subscription => subscription.Id);
+            entity.Property(subscription => subscription.DiscordUserId).HasConversion(ulongToString);
+            entity.Property(subscription => subscription.StoreKey).HasMaxLength(64).IsRequired();
+            entity.Property(subscription => subscription.StoreDisplayName).HasMaxLength(256).IsRequired();
+            entity.HasIndex(subscription => new { subscription.DiscordUserId, subscription.StoreKey }).IsUnique();
+            entity.HasIndex(subscription => subscription.StoreKey);
         });
     }
 }

@@ -1,0 +1,104 @@
+@page
+@model JetlagBot.App.Pages.Bonus.IndexModel
+@{
+    ViewData["Title"] = "Bonusvarsler";
+}
+
+<h1 class="mb-3">Bonusvarsler</h1>
+<p class="text-muted">
+    Velg én eller flere butikker. Når Bonus Tracker finner kampanjer eller økt bonus for en valgt butikk,
+    sender JetlagBot en privat melding (DM) til deg på Discord.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-success">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+@if (!Model.BonusTrackerConfigured)
+{
+    <div class="alert alert-info">
+        Butikklisten er ikke konfigurert (<code>BonusAlert:BonusTrackerBaseUrl</code>).
+        Du kan fortsatt se lagrede abonnementer.
+    </div>
+}
+
+<form method="post" id="bonus-form">
+    <div class="mb-3">
+        <label class="form-label" for="store-filter">Søk i butikker</label>
+        <input type="search" class="form-control" id="store-filter" placeholder="Skriv for å filtrere…" autocomplete="off" />
+    </div>
+
+    <div class="border rounded p-3 mb-3" style="max-height: 28rem; overflow-y: auto;">
+        @if (Model.AvailableStores.Count == 0)
+        {
+            <p class="text-muted mb-0">Ingen mappede butikker er tilgjengelige.</p>
+        }
+        else
+        {
+            @foreach (var store in Model.AvailableStores)
+            {
+                var isChecked = Model.SelectedStoreKeys.Contains(store.StoreKey);
+                <div class="form-check store-option" data-name="@store.DisplayName.ToLowerInvariant()">
+                    <input class="form-check-input store-key"
+                           type="checkbox"
+                           name="SelectedStoreKeys"
+                           value="@store.StoreKey"
+                           id="store-@store.StoreKey"
+                           data-display-name="@store.DisplayName"
+                           @(isChecked ? "checked" : null) />
+                    <input type="hidden" class="store-name-input" name="SelectedStoreNames" value="@store.DisplayName" disabled="@(isChecked ? null : "disabled")" />
+                    <label class="form-check-label" for="store-@store.StoreKey">@store.DisplayName</label>
+                </div>
+            }
+        }
+    </div>
+
+    <p class="small text-muted">
+        Valgte butikker: <span id="selected-count">@Model.SelectedStoreKeys.Count</span>
+    </p>
+
+    <button type="submit" class="btn btn-primary">Lagre abonnementer</button>
+</form>
+
+@section Scripts {
+<script>
+    (function () {
+        const filter = document.getElementById('store-filter');
+        const count = document.getElementById('selected-count');
+        const options = Array.from(document.querySelectorAll('.store-option'));
+
+        function syncNames() {
+            options.forEach(option => {
+                const checkbox = option.querySelector('.store-key');
+                const nameInput = option.querySelector('.store-name-input');
+                if (!checkbox || !nameInput) return;
+                nameInput.disabled = !checkbox.checked;
+                if (checkbox.checked) {
+                    nameInput.value = checkbox.dataset.displayName || '';
+                }
+            });
+            count.textContent = document.querySelectorAll('.store-key:checked').length;
+        }
+
+        filter?.addEventListener('input', () => {
+            const q = filter.value.trim().toLowerCase();
+            options.forEach(option => {
+                const name = option.dataset.name || '';
+                option.style.display = !q || name.includes(q) ? '' : 'none';
+            });
+        });
+
+        document.querySelectorAll('.store-key').forEach(checkbox => {
+            checkbox.addEventListener('change', syncNames);
+        });
+
+        document.getElementById('bonus-form')?.addEventListener('submit', syncNames);
+        syncNames();
+    })();
+</script>
+}

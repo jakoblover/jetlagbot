@@ -21,6 +21,15 @@ account. Data is stored in PostgreSQL via Entity Framework Core with migrations.
   - View and edit the per-guild membership-age, cooldown rules, and vouch-panel channel.
   - Browse every vouch in a server (and delete vouches).
   - Manage the admin allowlist.
+- **Bonus store alerts** (Discord login for any member, or slash commands):
+  - Web page `/Bonus` with multi-select of unified store mappings from Bonus Tracker.
+  - Discord commands:
+    - `/bonus help` — list available `/bonus` commands
+    - `/bonus subscribe store:` — subscribe to a store (autocomplete)
+    - `/bonus unsubscribe store:` — remove a subscription (autocomplete)
+    - `/bonus list` — list your subscriptions
+  - Internal API `POST /api/internal/bonus-updates` (header `X-Api-Key`) receives store updates
+    from bonus-tracker and sends Discord DMs to subscribed users.
 
 ## Project structure
 
@@ -65,6 +74,9 @@ as environment variables, never committed.
 | `Discord:PrimaryGuildId` | `Discord__PrimaryGuildId` | Optional; ensures settings exist for this guild on startup |
 | `Discord:DevGuildId` | `Discord__DevGuildId` | Optional; registers slash commands instantly to one guild (dev) |
 | `Admin:DiscordUserIds` | `Admin__DiscordUserIds__0`, `__1`, ... | Bootstrap admin allowlist (Discord user ids) |
+| `BonusAlert:ApiKey` | `BonusAlert__ApiKey` | Shared secret for bonus-tracker update posts |
+| `BonusAlert:BonusTrackerBaseUrl` | `BonusAlert__BonusTrackerBaseUrl` | Public Bonus Tracker base URL (store multi-select) |
+| `BonusAlert:MaxSubscriptionsPerUser` | `BonusAlert__MaxSubscriptionsPerUser` | Cap on stores per user (default 50) |
 
 Copy `.env.example` to `.env` and fill in the values for Docker / Dokploy.
 

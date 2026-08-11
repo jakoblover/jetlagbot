@@ -9,7 +9,7 @@ namespace JetlagBot.App.Discord;
 
 /// <summary>
 /// Hosts the Discord gateway connection, registers slash commands, and dispatches
-/// interactions to <see cref="VouchCommandHandler"/>.
+/// interactions to command handlers.
 /// </summary>
 public class DiscordBotService : BackgroundService
 {
@@ -45,6 +45,7 @@ public class DiscordBotService : BackgroundService
         _client.Log += OnLogAsync;
         _client.Ready += OnReadyAsync;
         _client.SlashCommandExecuted += OnSlashCommandExecutedAsync;
+        _client.AutocompleteExecuted += OnAutocompleteExecutedAsync;
         _client.ButtonExecuted += OnButtonExecutedAsync;
         _client.SelectMenuExecuted += OnSelectMenuExecutedAsync;
         _client.ModalSubmitted += OnModalSubmittedAsync;
@@ -129,24 +130,68 @@ public class DiscordBotService : BackgroundService
             .AddOption("user", ApplicationCommandOptionType.User, "Brukeren hvis anbefalinger du vil se.", isRequired: true)
             .Build();
 
-        return new ApplicationCommandProperties[] { vouch, vouches };
+        var bonus = new SlashCommandBuilder()
+            .WithName("bonus")
+            .WithDescription("Administrer personlige butikkvarsler for bonusoppdateringer.")
+            .AddOption(new SlashCommandOptionBuilder()
+                .WithName("subscribe")
+                .WithDescription("Abonner på oppdateringer for en butikk (DM).")
+                .WithType(ApplicationCommandOptionType.SubCommand)
+                .AddOption(
+                    "store",
+                    ApplicationCommandOptionType.String,
+                    "Butikk (bruk autocompletion).",
+                    isRequired: true,
+                    isAutocomplete: true))
+            .AddOption(new SlashCommandOptionBuilder()
+                .WithName("unsubscribe")
+                .WithDescription("Fjern abonnement på en butikk.")
+                .WithType(ApplicationCommandOptionType.SubCommand)
+                .AddOption(
+                    "store",
+                    ApplicationCommandOptionType.String,
+                    "Butikk (bruk autocompletion).",
+                    isRequired: true,
+                    isAutocomplete: true))
+            .AddOption(new SlashCommandOptionBuilder()
+                .WithName("list")
+                .WithDescription("Vis butikkene du abonnerer på.")
+                .WithType(ApplicationCommandOptionType.SubCommand))
+            .AddOption(new SlashCommandOptionBuilder()
+                .WithName("help")
+                .WithDescription("Vis tilgjengelige /bonus-kommandoer.")
+                .WithType(ApplicationCommandOptionType.SubCommand))
+            .Build();
+
+        return new ApplicationCommandProperties[] { vouch, vouches, bonus };
     }
 
     private async Task OnSlashCommandExecutedAsync(SocketSlashCommand command)
     {
         using var scope = _scopeFactory.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<VouchCommandHandler>();
 
         try
         {
             switch (command.Data.Name)
             {
                 case "vouch":
+                {
+                    var handler = scope.ServiceProvider.GetRequiredService<VouchCommandHandler>();
                     await handler.HandleVouchAsync(command);
                     break;
+                }
                 case "vouches":
+                {
+                    var handler = scope.ServiceProvider.GetRequiredService<VouchCommandHandler>();
                     await handler.HandleVouchesAsync(command);
                     break;
+                }
+                case "bonus":
+                {
+                    var handler = scope.ServiceProvider.GetRequiredService<BonusCommandHandler>();
+                    await handler.HandleAsync(command);
+                    break;
+                }
                 default:
                     await command.RespondAsync("Ukjent kommando.", ephemeral: true);
                     break;
@@ -164,6 +209,34 @@ public class DiscordBotService : BackgroundService
             else
             {
                 await command.RespondAsync(error, ephemeral: true);
+            }
+        }
+    }
+
+    private async Task OnAutocompleteExecutedAsync(SocketAutocompleteInteraction interaction)
+    {
+        if (interaction.Data.CommandName != "bonus")
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var handler = scope.ServiceProvider.GetRequiredService<BonusCommandHandler>();
+
+        try
+        {
+            await handler.HandleAutocompleteAsync(interaction);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling bonus autocomplete.");
+            try
+            {
+                await interaction.RespondAsync(Array.Empty<AutocompleteResult>());
+            }
+            catch
+            {
+                // Autocomplete may already have timed out.
             }
         }
     }

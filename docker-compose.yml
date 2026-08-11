@@ -23,3 +23,7 @@ services:
       Discord__DevGuildId: ${Discord__DevGuildId:-}
       # Admin allowlist bootstrap (comma-separated handled via indexed vars below if needed)
       Admin__DiscordUserIds__0: ${Admin__DiscordUserIds__0:-}
+      # Bonus alert integration (bonus-tracker → JetlagBot DMs)
+      BonusAlert__ApiKey: ${BonusAlert__ApiKey:-}
+      BonusAlert__BonusTrackerBaseUrl: ${BonusAlert__BonusTrackerBaseUrl:-}
+      BonusAlert__MaxSubscriptionsPerUser: ${BonusAlert__MaxSubscriptionsPerUser:-50}
