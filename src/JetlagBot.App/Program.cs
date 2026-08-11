@@ -39,7 +39,11 @@ builder.Services.AddSingleton<IDiscordDmSender, DiscordDmSender>();
 builder.Services.AddScoped<IBonusAlertService, BonusAlertService>();
 builder.Services.AddHttpClient(nameof(BonusAlertService), client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.TryAddWithoutValidation(
+        "User-Agent",
+        "JetlagBot/1.0 (BonusAlerts; server-to-server)");
+    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
 });
 
 // Discord bot ---------------------------------------------------------------

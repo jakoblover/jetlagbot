@@ -74,9 +74,9 @@ as environment variables, never committed.
 | `Discord:PrimaryGuildId` | `Discord__PrimaryGuildId` | Optional; ensures settings exist for this guild on startup |
 | `Discord:DevGuildId` | `Discord__DevGuildId` | Optional; registers slash commands instantly to one guild (dev) |
 | `Admin:DiscordUserIds` | `Admin__DiscordUserIds__0`, `__1`, ... | Bootstrap admin allowlist (Discord user ids) |
-| `BonusAlert:ApiKey` | `BonusAlert__ApiKey` | Shared secret for bonus-tracker update posts |
-| `BonusAlert:BonusTrackerBaseUrl` | `BonusAlert__BonusTrackerBaseUrl` | Bonus Tracker website or BFF base URL (store name search) |
-| `BonusAlert:BonusTrackerStoresPath` | `BonusAlert__BonusTrackerStoresPath` | Optional path override (default tries `/api/bff/stores/unified` then `/api/stores/unified`) |
+| `BonusAlert:ApiKey` | `BonusAlert__ApiKey` | **Same value as** bonus-tracker `JETLAGBOT_API_KEY`. Used for inbound update posts and outbound store search (`X-Api-Key`) |
+| `BonusAlert:BonusTrackerBaseUrl` | `BonusAlert__BonusTrackerBaseUrl` | Bonus Tracker **BFF** base URL preferred (e.g. internal `http://bff:8080`). Public site may return 403 from WAF |
+| `BonusAlert:BonusTrackerStoresPath` | `BonusAlert__BonusTrackerStoresPath` | Optional path override (default: `/api/internal/jetlag/stores` with API key) |
 | `BonusAlert:MaxSubscriptionsPerUser` | `BonusAlert__MaxSubscriptionsPerUser` | Cap on stores per user (default 50) |
 
 Copy `.env.example` to `.env` and fill in the values for Docker / Dokploy.

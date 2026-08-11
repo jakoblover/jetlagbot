@@ -297,28 +297,46 @@ public sealed class BonusAlertService(
             return [];
         }
 
+        var apiKey = options.Value.ApiKey?.Trim();
         var client = httpClientFactory.CreateClient(nameof(BonusAlertService));
         var queryText = query?.Trim() ?? string.Empty;
-        var search = new List<string> { "take=200", "activeOnly=false" };
-        if (!string.IsNullOrWhiteSpace(queryText))
-        {
-            search.Add($"query={Uri.EscapeDataString(queryText)}");
-        }
 
-        var queryString = string.Join('&', search);
         Exception? lastError = null;
-        foreach (var path in ResolveStoresPaths())
+        foreach (var (path, requiresApiKey) in ResolveStoresPaths())
         {
-            var url = $"{baseUrl}{path}?{queryString}";
+            if (requiresApiKey && string.IsNullOrWhiteSpace(apiKey))
+            {
+                continue;
+            }
+
+            var queryString = requiresApiKey
+                ? (string.IsNullOrWhiteSpace(queryText) ? string.Empty : $"query={Uri.EscapeDataString(queryText)}")
+                : BuildPublicUnifiedQuery(queryText);
+            var url = string.IsNullOrEmpty(queryString)
+                ? $"{baseUrl}{path}"
+                : $"{baseUrl}{path}?{queryString}";
+
             try
             {
-                using var response = await client.GetAsync(url, cancellationToken);
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.TryAddWithoutValidation("Accept", "application/json");
+                request.Headers.TryAddWithoutValidation(
+                    "User-Agent",
+                    "JetlagBot/1.0 (BonusAlerts; server-to-server)");
+                if (requiresApiKey && !string.IsNullOrWhiteSpace(apiKey))
+                {
+                    // Same value as bonus-tracker JETLAGBOT_API_KEY / JetlagBot:SharedApiKey
+                    request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
+                }
+
+                using var response = await client.SendAsync(request, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogDebug(
-                        "Store search {Url} returned {StatusCode}.",
+                    logger.LogWarning(
+                        "Store search {Url} returned {StatusCode}. RequiresApiKey={RequiresApiKey}.",
                         url,
-                        (int)response.StatusCode);
+                        (int)response.StatusCode,
+                        requiresApiKey);
                     continue;
                 }
 
@@ -347,7 +365,7 @@ public sealed class BonusAlertService(
                     .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
-                logger.LogDebug(
+                logger.LogInformation(
                     "Store search via {Url} returned {Count} options for query '{Query}'.",
                     url,
                     results.Count,
@@ -372,20 +390,38 @@ public sealed class BonusAlertService(
         return [];
     }
 
-    private IEnumerable<string> ResolveStoresPaths()
+    private IEnumerable<(string Path, bool RequiresApiKey)> ResolveStoresPaths()
     {
         var configured = options.Value.BonusTrackerStoresPath?.Trim();
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            yield return configured.StartsWith('/') ? configured : "/" + configured;
+            var path = configured.StartsWith('/') ? configured : "/" + configured;
+            var requiresKey = path.Contains("/internal/jetlag", StringComparison.OrdinalIgnoreCase);
+            yield return (path, requiresKey);
             yield break;
         }
 
-        // Public website nginx only proxies /api/bff/* to the BFF.
-        yield return "/api/bff/stores/unified";
-        // Direct BFF URL uses /api/* without the bff prefix.
-        yield return "/api/stores/unified";
-        yield return "/api/web/v1/stores/unified";
+        // Authenticated server-to-server endpoint (same key as BonusAlert__ApiKey / JETLAGBOT_API_KEY).
+        // Direct BFF:
+        yield return ("/api/internal/jetlag/stores", true);
+        // Public site nginx only proxies /api/bff/* → BFF /api/*:
+        yield return ("/api/bff/internal/jetlag/stores", true);
+
+        // Public fallbacks (may be blocked by Cloudflare/WAF with 403).
+        yield return ("/api/bff/stores/unified", false);
+        yield return ("/api/stores/unified", false);
+        yield return ("/api/web/v1/stores/unified", false);
+    }
+
+    private static string BuildPublicUnifiedQuery(string queryText)
+    {
+        var search = new List<string> { "take=200", "activeOnly=false" };
+        if (!string.IsNullOrWhiteSpace(queryText))
+        {
+            search.Add($"query={Uri.EscapeDataString(queryText)}");
+        }
+
+        return string.Join('&', search);
     }
 
     private static List<BonusStoreOption> ParseStoreOptions(JsonElement items)
@@ -393,8 +429,20 @@ public sealed class BonusAlertService(
         var results = new List<BonusStoreOption>();
         foreach (var item in items.EnumerateArray())
         {
-            var displayName = ReadString(item, "displayName")
-                ?? ReadString(item, "DisplayName")
+            // Internal Jetlag endpoint: { storeKey, displayName }
+            var storeKey = ReadString(item, "storeKey") ?? ReadString(item, "StoreKey");
+            var simpleName = ReadString(item, "displayName") ?? ReadString(item, "DisplayName");
+            if (!string.IsNullOrWhiteSpace(storeKey) && !string.IsNullOrWhiteSpace(simpleName))
+            {
+                results.Add(new BonusStoreOption
+                {
+                    StoreKey = storeKey,
+                    DisplayName = simpleName,
+                });
+                continue;
+            }
+
+            var displayName = simpleName
                 ?? FirstNestedStoreName(item)
                 ?? "Ukjent butikk";
 
