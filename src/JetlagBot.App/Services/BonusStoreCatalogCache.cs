@@ -142,29 +142,31 @@ public sealed class BonusStoreCatalogCache(
             return [];
         }
 
-        var client = httpClientFactory.CreateClient(nameof(BonusAlertService));
-        foreach (var (path, requiresApiKey) in ResolveCatalogPaths(baseUrl))
+        var apiKey = options.Value.ApiKey?.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
-            if (requiresApiKey && string.IsNullOrWhiteSpace(options.Value.ApiKey))
-            {
-                continue;
-            }
+            logger.LogWarning(
+                "BonusAlert:ApiKey is not set; JetlagBot cannot call the protected store catalog. " +
+                "Set BonusAlert__ApiKey to the same value as bonus-tracker JETLAGBOT_API_KEY.");
+            return [];
+        }
 
+        var client = httpClientFactory.CreateClient(nameof(BonusAlertService));
+        foreach (var path in ResolveCatalogPaths(baseUrl))
+        {
             var url = $"{baseUrl}{path}";
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.TryAddWithoutValidation("Accept", "application/json");
-                if (requiresApiKey)
-                {
-                    request.Headers.TryAddWithoutValidation("X-Api-Key", options.Value.ApiKey.Trim());
-                }
+                // Same secret as bonus-tracker JETLAGBOT_API_KEY / JetlagBot:SharedApiKey
+                request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
 
                 using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogDebug(
-                        "Catalog fetch {Url} returned {StatusCode}.",
+                    logger.LogWarning(
+                        "Protected catalog fetch {Url} returned {StatusCode}.",
                         url,
                         (int)response.StatusCode);
                     continue;
@@ -175,7 +177,7 @@ public sealed class BonusStoreCatalogCache(
                     || body.TrimStart().StartsWith('<')
                     || !body.TrimStart().StartsWith('{'))
                 {
-                    logger.LogDebug("Catalog fetch {Url} returned non-JSON body.", url);
+                    logger.LogWarning("Protected catalog fetch {Url} returned non-JSON body.", url);
                     continue;
                 }
 
@@ -183,6 +185,7 @@ public sealed class BonusStoreCatalogCache(
                 if (!document.RootElement.TryGetProperty("items", out var items)
                     && !document.RootElement.TryGetProperty("Items", out items))
                 {
+                    logger.LogWarning("Protected catalog fetch {Url} response had no items array.", url);
                     continue;
                 }
 
@@ -195,6 +198,8 @@ public sealed class BonusStoreCatalogCache(
                         .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                         .ToArray();
                 }
+
+                logger.LogWarning("Protected catalog fetch {Url} parsed 0 stores.", url);
             }
             catch (OperationCanceledException)
             {
@@ -202,45 +207,34 @@ public sealed class BonusStoreCatalogCache(
             }
             catch (Exception exception)
             {
-                logger.LogDebug(exception, "Catalog fetch failed for {Url}.", url);
+                logger.LogWarning(exception, "Protected catalog fetch failed for {Url}.", url);
             }
         }
 
         return [];
     }
 
-    private IEnumerable<(string Path, bool RequiresApiKey)> ResolveCatalogPaths(string baseUrl)
+    /// <summary>
+    /// Only the API-key-protected Jetlag catalog. Never the public /stores/unified endpoint.
+    /// </summary>
+    private IEnumerable<string> ResolveCatalogPaths(string baseUrl)
     {
         var configured = options.Value.BonusTrackerStoresPath?.Trim();
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            var path = configured.StartsWith('/') ? configured : "/" + configured;
-            var requiresKey = path.Contains("/internal/jetlag", StringComparison.OrdinalIgnoreCase);
-            // Catalog loads the full list; append take for unified endpoints.
-            if (path.Contains("unified", StringComparison.OrdinalIgnoreCase))
-            {
-                path = AppendQuery(path, "take=200&activeOnly=false");
-            }
-
-            yield return (path, requiresKey);
+            yield return configured.StartsWith('/') ? configured : "/" + configured;
             yield break;
         }
 
         if (LooksLikePublicFrontendBaseUrl(baseUrl))
         {
-            // One path only — public nginx proxies /api/bff/* to the BFF.
-            yield return ("/api/bff/stores/unified?take=200&activeOnly=false", false);
+            // Public site: Traefik → frontend nginx proxies /api/bff/* → BFF /api/*
+            yield return "/api/bff/internal/jetlag/stores";
             yield break;
         }
 
-        // Direct BFF.
-        yield return ("/api/internal/jetlag/stores", true);
-        yield return ("/api/stores/unified?take=200&activeOnly=false", false);
-    }
-
-    private static string AppendQuery(string path, string query)
-    {
-        return path.Contains('?', StringComparison.Ordinal) ? $"{path}&{query}" : $"{path}?{query}";
+        // Direct BFF base URL (same Docker network).
+        yield return "/api/internal/jetlag/stores";
     }
 
     private static bool LooksLikePublicFrontendBaseUrl(string baseUrl)

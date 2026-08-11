@@ -15,15 +15,16 @@ public class BonusAlertOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Bonus Tracker base URL for store name search.
-    /// Prefer the BFF origin (not Cloudflare) e.g. <c>http://bff:8080</c> or the internal BFF host.
-    /// Public site origin also works if <c>/api/bff/internal/jetlag/stores</c> is reachable.
+    /// Bonus Tracker base URL for the <b>protected</b> Jetlag store catalog only.
+    /// Public site: <c>https://eb.loever.net</c> → calls <c>/api/bff/internal/jetlag/stores</c> with <see cref="ApiKey"/>.
+    /// Direct BFF (same network): <c>http://bff:8080</c> → calls <c>/api/internal/jetlag/stores</c>.
+    /// Does not use the public <c>/stores/unified</c> website endpoint.
     /// </summary>
     public string? BonusTrackerBaseUrl { get; set; }
 
     /// <summary>
-    /// Optional path override for store search.
-    /// Default tries authenticated <c>/api/internal/jetlag/stores</c> first, then public unified paths.
+    /// Optional path override for the protected store catalog (must require <c>X-Api-Key</c> on the BFF).
+    /// Default: <c>/api/bff/internal/jetlag/stores</c> (public frontend) or <c>/api/internal/jetlag/stores</c> (BFF).
     /// </summary>
     public string? BonusTrackerStoresPath { get; set; }
 
