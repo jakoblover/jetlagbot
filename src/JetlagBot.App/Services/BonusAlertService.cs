@@ -332,16 +332,39 @@ public sealed class BonusAlertService(
                 using var response = await client.SendAsync(request, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogWarning(
-                        "Store search {Url} returned {StatusCode}. RequiresApiKey={RequiresApiKey}.",
-                        url,
-                        (int)response.StatusCode,
-                        requiresApiKey);
+                    // 404 is expected when a path is not deployed yet — keep noise low.
+                    if ((int)response.StatusCode == 404)
+                    {
+                        logger.LogDebug("Store search {Url} returned 404; trying next path.", url);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Store search {Url} returned {StatusCode}. RequiresApiKey={RequiresApiKey}.",
+                            url,
+                            (int)response.StatusCode,
+                            requiresApiKey);
+                    }
+
                     continue;
                 }
 
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(body)
+                    || body.TrimStart().StartsWith('<')
+                    || (!mediaType.Contains("json", StringComparison.OrdinalIgnoreCase)
+                        && !body.TrimStart().StartsWith('{')))
+                {
+                    // Public SPA often returns index.html (200) for unproxied /api/* paths.
+                    logger.LogDebug(
+                        "Store search {Url} returned non-JSON content-type '{MediaType}'; trying next path.",
+                        url,
+                        mediaType);
+                    continue;
+                }
+
+                using var document = JsonDocument.Parse(body);
                 if (!document.RootElement.TryGetProperty("items", out var items)
                     && !document.RootElement.TryGetProperty("Items", out items))
                 {
@@ -375,7 +398,7 @@ public sealed class BonusAlertService(
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 lastError = exception;
-                logger.LogWarning(exception, "Store search failed for {Url}.", url);
+                logger.LogDebug(exception, "Store search failed for {Url}; trying next path.", url);
             }
         }
 
@@ -401,16 +424,45 @@ public sealed class BonusAlertService(
             yield break;
         }
 
-        // Authenticated server-to-server endpoint (same key as BonusAlert__ApiKey / JETLAGBOT_API_KEY).
-        // Direct BFF:
-        yield return ("/api/internal/jetlag/stores", true);
-        // Public site nginx only proxies /api/bff/* → BFF /api/*:
-        yield return ("/api/bff/internal/jetlag/stores", true);
+        var baseUrl = options.Value.BonusTrackerBaseUrl?.Trim().TrimEnd('/') ?? string.Empty;
+        var looksLikePublicSite = LooksLikePublicFrontendBaseUrl(baseUrl);
 
-        // Public fallbacks (may be blocked by Cloudflare/WAF with 403).
-        yield return ("/api/bff/stores/unified", false);
+        if (looksLikePublicSite)
+        {
+            // Public origin (eb.loever.net): nginx only proxies /api/bff/* to the BFF.
+            // /api/internal/* falls through to the SPA and returns HTML — skip it.
+            yield return ("/api/bff/stores/unified", false);
+            yield return ("/api/bff/internal/jetlag/stores", true);
+            yield break;
+        }
+
+        // Direct BFF base URL (http://bff:8080, internal host, etc.).
+        yield return ("/api/internal/jetlag/stores", true);
         yield return ("/api/stores/unified", false);
         yield return ("/api/web/v1/stores/unified", false);
+    }
+
+    private static bool LooksLikePublicFrontendBaseUrl(string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        // Heuristic: public HTTPS website hosts (not raw BFF service names / localhost ports).
+        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && !uri.IsLoopback
+            && uri.Port is 443 or 80)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static string BuildPublicUnifiedQuery(string queryText)
