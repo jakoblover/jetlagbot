@@ -286,27 +286,28 @@ public sealed class BonusAlertService(
         string? query,
         CancellationToken cancellationToken = default)
     {
-        // Discord autocomplete has a hard 3s limit. Prefer cache; only briefly try a refresh.
-        await storeCatalog
-            .RefreshIfNeededAsync(
-                maxAge: TimeSpan.FromMinutes(30),
-                timeout: TimeSpan.FromMilliseconds(900),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        var cached = storeCatalog.Search(query, take: 25);
-        if (cached.Count > 0 || storeCatalog.HasData)
+        // Discord autocomplete has a hard 3s limit. Prefer memory; do not wait long here.
+        // Background worker warms the catalog. If cold, try a short refresh then filter.
+        if (!storeCatalog.HasData)
         {
-            return cached;
+            await storeCatalog
+                .RefreshIfNeededAsync(
+                    maxAge: TimeSpan.Zero,
+                    timeout: TimeSpan.FromMilliseconds(1200),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            // Opportunistic refresh when stale — still short so autocomplete can answer.
+            await storeCatalog
+                .RefreshIfNeededAsync(
+                    maxAge: TimeSpan.FromMinutes(30),
+                    timeout: TimeSpan.FromMilliseconds(400),
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        // Cold cache and short refresh failed — one longer attempt (slash subscribe, not autocomplete).
-        await storeCatalog
-            .RefreshIfNeededAsync(
-                maxAge: TimeSpan.Zero,
-                timeout: TimeSpan.FromSeconds(5),
-                cancellationToken)
-            .ConfigureAwait(false);
         return storeCatalog.Search(query, take: 25);
     }
 

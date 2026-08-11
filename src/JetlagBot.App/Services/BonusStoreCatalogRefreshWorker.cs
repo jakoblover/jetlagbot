@@ -6,7 +6,7 @@ public sealed class BonusStoreCatalogRefreshWorker(
     ILogger<BonusStoreCatalogRefreshWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);
-    private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(25);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

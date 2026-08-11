@@ -39,10 +39,11 @@ builder.Services.AddSingleton<IDiscordDmSender, DiscordDmSender>();
 builder.Services.AddSingleton<IBonusStoreCatalogCache, BonusStoreCatalogCache>();
 builder.Services.AddHostedService<BonusStoreCatalogRefreshWorker>();
 builder.Services.AddScoped<IBonusAlertService, BonusAlertService>();
-// Keep short: Discord autocomplete must finish in <3s; long 502 waits block the gateway.
+// Catalog refresh is a single fast BFF call; autocomplete uses memory only.
+// Keep timeout moderate so a cold catalog load can finish without 499 client aborts.
 builder.Services.AddHttpClient(nameof(BonusAlertService), client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(2);
+    client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.TryAddWithoutValidation(
         "User-Agent",
         "JetlagBot/1.0 (BonusAlerts; server-to-server)");
