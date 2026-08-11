@@ -292,51 +292,215 @@ public sealed class BonusAlertService(
         var baseUrl = options.Value.BonusTrackerBaseUrl?.Trim().TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
+            logger.LogWarning(
+                "BonusAlert:BonusTrackerBaseUrl is not set; Discord store autocomplete cannot search by name.");
             return [];
         }
 
         var client = httpClientFactory.CreateClient(nameof(BonusAlertService));
-        var search = new List<string> { "take=200", "activeOnly=true" };
-        if (!string.IsNullOrWhiteSpace(query))
+        var queryText = query?.Trim() ?? string.Empty;
+        var search = new List<string> { "take=200", "activeOnly=false" };
+        if (!string.IsNullOrWhiteSpace(queryText))
         {
-            search.Add($"query={Uri.EscapeDataString(query.Trim())}");
+            search.Add($"query={Uri.EscapeDataString(queryText)}");
         }
 
-        using var response = await client.GetAsync(
-            $"{baseUrl}/api/stores/unified?{string.Join('&', search)}",
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        if (!document.RootElement.TryGetProperty("items", out var items)
-            && !document.RootElement.TryGetProperty("Items", out items))
+        var queryString = string.Join('&', search);
+        Exception? lastError = null;
+        foreach (var path in ResolveStoresPaths())
         {
-            return [];
+            var url = $"{baseUrl}{path}?{queryString}";
+            try
+            {
+                using var response = await client.GetAsync(url, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger.LogDebug(
+                        "Store search {Url} returned {StatusCode}.",
+                        url,
+                        (int)response.StatusCode);
+                    continue;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                if (!document.RootElement.TryGetProperty("items", out var items)
+                    && !document.RootElement.TryGetProperty("Items", out items))
+                {
+                    logger.LogWarning("Store search {Url} response had no items array.", url);
+                    continue;
+                }
+
+                var results = ParseStoreOptions(items);
+                if (!string.IsNullOrWhiteSpace(queryText))
+                {
+                    results = results
+                        .Where(store =>
+                            store.DisplayName.Contains(queryText, StringComparison.OrdinalIgnoreCase)
+                            || store.StoreKey.Contains(queryText, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                results = results
+                    .GroupBy(store => store.StoreKey, StringComparer.Ordinal)
+                    .Select(group => group.First())
+                    .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+
+                logger.LogDebug(
+                    "Store search via {Url} returned {Count} options for query '{Query}'.",
+                    url,
+                    results.Count,
+                    queryText);
+                return results;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                lastError = exception;
+                logger.LogWarning(exception, "Store search failed for {Url}.", url);
+            }
         }
 
+        if (lastError is not null)
+        {
+            logger.LogWarning(
+                lastError,
+                "All Bonus Tracker store search paths failed for base URL {BaseUrl}.",
+                baseUrl);
+        }
+
+        return [];
+    }
+
+    private IEnumerable<string> ResolveStoresPaths()
+    {
+        var configured = options.Value.BonusTrackerStoresPath?.Trim();
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            yield return configured.StartsWith('/') ? configured : "/" + configured;
+            yield break;
+        }
+
+        // Public website nginx only proxies /api/bff/* to the BFF.
+        yield return "/api/bff/stores/unified";
+        // Direct BFF URL uses /api/* without the bff prefix.
+        yield return "/api/stores/unified";
+        yield return "/api/web/v1/stores/unified";
+    }
+
+    private static List<BonusStoreOption> ParseStoreOptions(JsonElement items)
+    {
         var results = new List<BonusStoreOption>();
         foreach (var item in items.EnumerateArray())
         {
+            var displayName = ReadString(item, "displayName")
+                ?? ReadString(item, "DisplayName")
+                ?? FirstNestedStoreName(item)
+                ?? "Ukjent butikk";
+
             var mappingId = ReadGuid(item, "storeMappingId") ?? ReadGuid(item, "StoreMappingId");
-            if (mappingId is null)
+            if (mappingId is Guid mapped)
+            {
+                results.Add(new BonusStoreOption
+                {
+                    StoreKey = mapped.ToString("D"),
+                    DisplayName = displayName,
+                });
+                continue;
+            }
+
+            // Unmapped / auto-grouped rows: still allow subscribe by a concrete source store id.
+            foreach (var storeId in NestedStoreIds(item))
+            {
+                results.Add(new BonusStoreOption
+                {
+                    StoreKey = storeId.ToString("D"),
+                    DisplayName = displayName,
+                });
+            }
+        }
+
+        return results;
+    }
+
+    private static IEnumerable<Guid> NestedStoreIds(JsonElement item)
+    {
+        foreach (var propertyName in new[]
+                 {
+                     "trumfStores", "TrumfStores",
+                     "sasStores", "SasStores",
+                     "trumfFordelStores", "TrumfFordelStores",
+                 })
+        {
+            if (!item.TryGetProperty(propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
             {
                 continue;
             }
 
-            var displayName = ReadString(item, "displayName")
-                ?? ReadString(item, "DisplayName")
-                ?? mappingId.Value.ToString("D");
-            results.Add(new BonusStoreOption
+            foreach (var store in array.EnumerateArray())
             {
-                StoreKey = mappingId.Value.ToString("D"),
-                DisplayName = displayName,
-            });
+                var id = ReadGuid(store, "id") ?? ReadGuid(store, "Id");
+                if (id is Guid storeId)
+                {
+                    yield return storeId;
+                }
+            }
         }
 
-        return results
-            .OrderBy(store => store.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-            .ToArray();
+        foreach (var propertyName in new[] { "trumf", "Trumf", "sas", "Sas", "trumfFordel", "TrumfFordel" })
+        {
+            if (!item.TryGetProperty(propertyName, out var store) || store.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var id = ReadGuid(store, "id") ?? ReadGuid(store, "Id");
+            if (id is Guid storeId)
+            {
+                yield return storeId;
+            }
+        }
+    }
+
+    private static string? FirstNestedStoreName(JsonElement item)
+    {
+        foreach (var propertyName in new[]
+                 {
+                     "trumfStores", "TrumfStores",
+                     "sasStores", "SasStores",
+                     "trumfFordelStores", "TrumfFordelStores",
+                 })
+        {
+            if (!item.TryGetProperty(propertyName, out var array) || array.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var store in array.EnumerateArray())
+            {
+                var name = ReadString(store, "name") ?? ReadString(store, "Name");
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    return name;
+                }
+            }
+        }
+
+        foreach (var propertyName in new[] { "trumf", "Trumf", "sas", "Sas", "trumfFordel", "TrumfFordel" })
+        {
+            if (!item.TryGetProperty(propertyName, out var store) || store.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var name = ReadString(store, "name") ?? ReadString(store, "Name");
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+
+        return null;
     }
 
     public static IReadOnlyList<string> MatchKeysFor(BonusStoreUpdateDto update)

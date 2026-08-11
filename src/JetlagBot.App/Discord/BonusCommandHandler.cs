@@ -8,7 +8,8 @@ namespace JetlagBot.App.Discord;
 /// <summary>Handles /bonus subscribe|unsubscribe|list slash commands and store autocomplete.</summary>
 public sealed class BonusCommandHandler(
     IBonusAlertService bonusAlertService,
-    EphemeralResponder responder)
+    EphemeralResponder responder,
+    ILogger<BonusCommandHandler> logger)
 {
     private const int MaxResponseLength = 1900;
     private const int MaxAutocompleteResults = 25;
@@ -76,8 +77,12 @@ public sealed class BonusCommandHandler(
                     .Take(MaxAutocompleteResults)
                     .ToArray();
             }
-            catch
+            catch (Exception exception)
             {
+                logger.LogWarning(
+                    exception,
+                    "Bonus subscribe autocomplete failed for query '{Query}'.",
+                    query);
                 options = [];
             }
         }
@@ -87,6 +92,12 @@ public sealed class BonusCommandHandler(
                 Truncate(store.DisplayName, 100),
                 store.StoreKey))
             .ToArray();
+
+        logger.LogDebug(
+            "Bonus autocomplete ({Subcommand}) query='{Query}' returned {Count} options.",
+            subcommand ?? "subscribe",
+            query,
+            results.Length);
 
         await interaction.RespondAsync(results);
     }

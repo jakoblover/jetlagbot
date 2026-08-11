@@ -11,10 +11,17 @@ public class BonusAlertOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional public base URL of bonus-tracker (e.g. https://eb.loever.net).
-    /// Used by the subscription page to load unified stores for multi-select.
+    /// Public base URL of bonus-tracker website or BFF
+    /// (e.g. https://eb.loever.net or https://bff.internal:8080).
+    /// Used for Discord autocomplete and the web multi-select store list.
     /// </summary>
     public string? BonusTrackerBaseUrl { get; set; }
+
+    /// <summary>
+    /// Optional path to unified stores on the base URL.
+    /// Default tries <c>/api/bff/stores/unified</c> (public site) then <c>/api/stores/unified</c> (BFF).
+    /// </summary>
+    public string? BonusTrackerStoresPath { get; set; }
 
     /// <summary>Maximum store keys a single user may subscribe to.</summary>
     public int MaxSubscriptionsPerUser { get; set; } = 50;

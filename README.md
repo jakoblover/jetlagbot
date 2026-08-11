@@ -75,7 +75,8 @@ as environment variables, never committed.
 | `Discord:DevGuildId` | `Discord__DevGuildId` | Optional; registers slash commands instantly to one guild (dev) |
 | `Admin:DiscordUserIds` | `Admin__DiscordUserIds__0`, `__1`, ... | Bootstrap admin allowlist (Discord user ids) |
 | `BonusAlert:ApiKey` | `BonusAlert__ApiKey` | Shared secret for bonus-tracker update posts |
-| `BonusAlert:BonusTrackerBaseUrl` | `BonusAlert__BonusTrackerBaseUrl` | Public Bonus Tracker base URL (store multi-select) |
+| `BonusAlert:BonusTrackerBaseUrl` | `BonusAlert__BonusTrackerBaseUrl` | Bonus Tracker website or BFF base URL (store name search) |
+| `BonusAlert:BonusTrackerStoresPath` | `BonusAlert__BonusTrackerStoresPath` | Optional path override (default tries `/api/bff/stores/unified` then `/api/stores/unified`) |
 | `BonusAlert:MaxSubscriptionsPerUser` | `BonusAlert__MaxSubscriptionsPerUser` | Cap on stores per user (default 50) |
 
 Copy `.env.example` to `.env` and fill in the values for Docker / Dokploy.
